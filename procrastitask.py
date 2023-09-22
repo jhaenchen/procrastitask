@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 import json
 import os
 import random
 import tempfile
 from subprocess import call
 from time import sleep
+from datetime import datetime
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -27,39 +29,40 @@ def rlinput(prefill: str, prompt="Edit:"):
             return splitted[1][:-3]
         return ""
 
-
+@dataclass
 class Task:
+    title: str
+    description: str
+    difficulty: int
+    duration: int
+    stress: int
+    is_complete: bool = False
+    due_date: datetime = None
+
+    def get_date_str(self, datetime: datetime):
+        return f"{datetime.day}/{datetime.month}/{datetime.year}"
+
     def pretty_print(self):
-        print(
-            f"\n{self.title} ({self.duration}min, stress: {self.stress}, diff: {self.difficulty})\n"
-        )
+        self.headline()
         print(f"{self.description}\n")
 
     def headline(self):
-        return f"{self.title} ({self.duration}min, stress: {self.stress}, diff: {self.difficulty})"
+        return f"{self.title} ({self.duration}min, stress: {self.stress}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
 
     def complete(self):
         self.is_complete = True
 
-    def __init__(
-        self, title, description, duration, stress, difficulty, is_complete=False
-    ):
-        self.title = title
-        self.description = description
-        self.duration = duration
-        self.stress = stress
-        self.is_complete = is_complete
-        self.difficulty = difficulty
-
     @staticmethod
     def from_dict(incoming_dict):
+        due_date = incoming_dict.get("due_date")
         return Task(
-            incoming_dict["title"],
-            incoming_dict["description"],
-            incoming_dict["duration"],
-            incoming_dict["stress"],
-            incoming_dict["difficulty"],
-            incoming_dict["is_complete"],
+            title=incoming_dict["title"],
+            description=incoming_dict["description"],
+            duration=incoming_dict["duration"],
+            stress=incoming_dict["stress"],
+            difficulty=incoming_dict["difficulty"],
+            due_date=datetime.fromisoformat(due_date) if due_date else None,
+            is_complete=incoming_dict["is_complete"],
         )
 
     def to_dict(self):
@@ -70,6 +73,7 @@ class Task:
             "stress": self.stress,
             "difficulty": self.difficulty,
             "is_complete": self.is_complete,
+            "due_date": self.due_date.isoformat() if self.due_date else self.due_date
         }
 
 
@@ -94,6 +98,33 @@ class App:
         # print(f"Deleting title {task_title} from collection {self.all_tasks}")
         self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
 
+    def get_date_prompt(self, prompt_text: str):
+        result = input(prompt_text)
+        if not result:
+            return None
+        parts = result.split(".")
+        now = datetime.now()
+        if len(parts) == 1:
+            year = now.year
+            day = int(parts[0])
+            month = now.month
+            if now.day > day:
+                month = month + 1
+            if now.month > month:
+                year = year + 1
+            return datetime(day=day, month=month, year=year)
+        if len(parts) == 2:
+            year = now.year
+            day = int(parts[0])
+            month = int(parts[1])
+            if now.day > day:
+                month = month + 1
+            if now.month > month:
+                year = year + 1
+            return datetime(day=day, month=month, year=year)
+        if len(parts) == 3:
+            return datetime(day=parts[0], month=parts[1], year=parts[2])
+
     def get_numerical_prompt(self, prompt_text, also_accept=None, input_func=None):
         while True:
             try:
@@ -111,8 +142,14 @@ class App:
         duration = self.get_numerical_prompt("Estimated duration (minutes): ")
         stress_level = self.get_numerical_prompt("Stress level: ")
         difficulty = self.get_numerical_prompt("Difficulty: ")
+        date = self.get_date_prompt("Due date:")
         created_task = Task(
-            task_title, task_description, duration, stress_level, difficulty
+            title=task_title,
+            description=task_description,
+            duration=duration,
+            stress=stress_level,
+            difficulty=difficulty,
+            due_date=date
         )
         return created_task
 
