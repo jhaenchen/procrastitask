@@ -98,8 +98,12 @@ class App:
         # print(f"Deleting title {task_title} from collection {self.all_tasks}")
         self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
 
-    def get_date_prompt(self, prompt_text: str):
-        result = input(prompt_text)
+    def get_date_prompt(self, prompt_text: str, input_func=None):
+        result = input_func(prompt_text) if input_func else input(prompt_text)
+        try:
+            return datetime.fromisoformat(result)
+        except ValueError:
+            pass
         if not result:
             return None
         parts = result.split(".")
@@ -263,6 +267,10 @@ class App:
         task.title = rlinput(task.title, "Title:")
 
         task.description = rlinput(task.description, "Description")
+        task.due_date = self.get_date_prompt(
+            "",
+            input_func=lambda *args, **kwargs: rlinput(task.due_date.isoformat(), "Due Date:"),
+        )
         task.difficulty = self.get_numerical_prompt(
             "",
             input_func=lambda *args, **kwargs: rlinput(task.difficulty, "Difficulty:"),
