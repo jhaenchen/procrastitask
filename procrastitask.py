@@ -5,7 +5,7 @@ import random
 import tempfile
 from subprocess import call
 from time import sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
@@ -39,7 +39,9 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
                 first_part = edited_message.split(key)[1]
                 next_part_idx = idx + 1
                 if len(multiprompt_items) >= next_part_idx + 1:
-                    first_part = first_part.split(multiprompt_items[next_part_idx][0])[0]
+                    first_part = first_part.split(multiprompt_items[next_part_idx][0])[
+                        0
+                    ]
                 formatted = first_part[:-2]
                 formatted = None if formatted == "None" else formatted
                 to_return.append(formatted)
@@ -59,6 +61,17 @@ class Task:
     stress: int
     is_complete: bool = False
     due_date: datetime = None
+
+    def is_due_soon(self):
+        if not self.due_date:
+            return False
+        due_in = self.due_date - datetime.now()
+        if due_in < timedelta(0):
+            # Already due
+            return True
+        elif due_in < timedelta(days=self.duration * 2 / 60):
+            return True
+        return False
 
     def get_date_str(self, datetime: datetime):
         return f"{datetime.day}/{datetime.month}/{datetime.year}"
@@ -178,6 +191,12 @@ class App:
         )
         return created_task
 
+    def task_sorter(self, x: Task):
+        x_stress = x.stress
+        if x.is_due_soon():
+            x_stress += max(x_stress * 0.33, 1)
+        return x_stress
+
     def list_all_tasks(self, task_list_override=None, extend_cache=False):
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
@@ -190,7 +209,8 @@ class App:
         )
         if len(incomplete_tasks) == 0:
             print("You have no available tasks.")
-        incomplete_tasks.sort(key=lambda t: t.stress, reverse=True)
+
+        incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
             print(f"[{true_idx}] {task.headline()}")
@@ -307,10 +327,14 @@ class App:
         task.title = title
 
         task.description = description
-        task.due_date = self.get_date_prompt(
-            "",
-            input_func=lambda *args, **kwargs: due_date,
-        ) if due_date else None
+        task.due_date = (
+            self.get_date_prompt(
+                "",
+                input_func=lambda *args, **kwargs: due_date,
+            )
+            if due_date
+            else None
+        )
         task.difficulty = self.get_numerical_prompt(
             "",
             input_func=lambda *args, **kwargs: difficulty,
