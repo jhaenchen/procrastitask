@@ -6,11 +6,17 @@ import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime
+from typing import List
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
 
-def rlinput(prefill: str, prompt="Edit:"):
+def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List[str]:
+    if multiprompt:
+        final_str = ""
+        for key, val in multiprompt.items():
+            final_str += f"{key}{val}\n"
+        prompt = final_str[:-1]
     initial_message = bytes(
         str(prompt) + str(prefill), encoding="utf-8"
     )  # if you want to set up the file somehow
@@ -23,11 +29,26 @@ def rlinput(prefill: str, prompt="Edit:"):
         # do the parsing with `tf` using regular File operations.
         # for instance:
         tf.seek(0)
-        edited_message = tf.read()
-        splitted = str(edited_message).split(prompt)
-        if len(splitted) == 2:
-            return splitted[1][:-3]
-        return ""
+        edited_message = str(tf.read())
+
+        to_return = []
+
+        if multiprompt:
+            multiprompt_items = list(multiprompt.items())
+            for idx, (key, val) in enumerate(multiprompt_items):
+                first_part = edited_message.split(key)[1]
+                next_part_idx = idx + 1
+                if len(multiprompt_items) >= next_part_idx + 1:
+                    first_part = first_part.split(multiprompt_items[next_part_idx][0])[0]
+                formatted = first_part[:-2]
+                formatted = None if formatted == "None" else formatted
+                to_return.append(formatted)
+        else:
+            splitted = str(edited_message).split(prompt)
+            if len(splitted) == 2:
+                return [splitted[1][:-3]]
+        return to_return
+
 
 @dataclass
 class Task:
@@ -73,7 +94,7 @@ class Task:
             "stress": self.stress,
             "difficulty": self.difficulty,
             "is_complete": self.is_complete,
-            "due_date": self.due_date.isoformat() if self.due_date else self.due_date
+            "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
         }
 
 
@@ -153,7 +174,7 @@ class App:
             duration=duration,
             stress=stress_level,
             difficulty=difficulty,
-            due_date=date
+            due_date=date,
         )
         return created_task
 
@@ -264,24 +285,43 @@ class App:
         print("\nWelcome to Procrastinator's Companion\n")
 
     def edit_task(self, task: Task):
-        task.title = rlinput(task.title, "Title:")
+        (
+            title,
+            description,
+            due_date,
+            difficulty,
+            stress,
+            duration,
+            is_complete,
+        ) = rlinput(
+            multiprompt={
+                "Title:": task.title,
+                "Description:": task.description,
+                "Due Date:": task.due_date,
+                "Difficulty:": task.difficulty,
+                "Stress:": task.stress,
+                "Duration:": task.duration,
+                "Is Complete:": task.is_complete,
+            }
+        )
+        task.title = title
 
-        task.description = rlinput(task.description, "Description")
+        task.description = description
         task.due_date = self.get_date_prompt(
             "",
-            input_func=lambda *args, **kwargs: rlinput(task.due_date.isoformat(), "Due Date:"),
-        )
+            input_func=lambda *args, **kwargs: due_date,
+        ) if due_date else None
         task.difficulty = self.get_numerical_prompt(
             "",
-            input_func=lambda *args, **kwargs: rlinput(task.difficulty, "Difficulty:"),
+            input_func=lambda *args, **kwargs: difficulty,
         )
         task.stress = self.get_numerical_prompt(
-            "", input_func=lambda *args, **kwargs: rlinput(task.stress, "Stress:")
+            "", input_func=lambda *args, **kwargs: stress
         )
         task.duration = self.get_numerical_prompt(
-            "", input_func=lambda *args, **kwargs: rlinput(task.duration, "Duration:")
+            "", input_func=lambda *args, **kwargs: duration
         )
-        task.complete = bool(rlinput(str(task.is_complete), "Is Complete:"))
+        task.complete = bool(is_complete)
 
     def display_home(self):
         print("\n")
