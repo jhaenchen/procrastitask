@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import json
 import os
-import random
 import tempfile
 from subprocess import call
 from time import sleep
@@ -54,6 +53,8 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
 
 @dataclass
 class Task:
+    _DEFAULT_REFRESHED = datetime(1970, 1, 1)
+
     title: str
     description: str
     difficulty: int
@@ -61,6 +62,18 @@ class Task:
     stress: int
     is_complete: bool = False
     due_date: datetime = None
+    last_refreshed: datetime = _DEFAULT_REFRESHED
+
+    def __key(self):
+        return (self.title, self.description)
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def __eq__(self, other):
+        if isinstance(other, Task):
+            return self.__key() == other.__key()
+        return NotImplemented
 
     def is_due_soon(self):
         if not self.due_date:
@@ -89,6 +102,7 @@ class Task:
     @staticmethod
     def from_dict(incoming_dict):
         due_date = incoming_dict.get("due_date")
+        last_refreshed = incoming_dict.get("last_refreshed")
         return Task(
             title=incoming_dict["title"],
             description=incoming_dict["description"],
@@ -97,6 +111,9 @@ class Task:
             difficulty=incoming_dict["difficulty"],
             due_date=datetime.fromisoformat(due_date) if due_date else None,
             is_complete=incoming_dict["is_complete"],
+            last_refreshed=datetime.fromisoformat(last_refreshed)
+            if last_refreshed
+            else None or Task._DEFAULT_REFRESHED,
         )
 
     def to_dict(self):
@@ -108,6 +125,7 @@ class Task:
             "difficulty": self.difficulty,
             "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
+            "last_refreshed": self.last_refreshed,
         }
 
 
@@ -286,7 +304,8 @@ class App:
             ]
             if not remaining_tasks:
                 return
-            chosen_task = random.choice(remaining_tasks)
+            remaining_tasks.sort(key=lambda t: t.last_refreshed, reverse=False)
+            chosen_task = remaining_tasks[0]
             if not chosen_task:
                 return
             seen_tasks.add(chosen_task)
@@ -297,8 +316,9 @@ class App:
             if new_stress == "x":
                 return
             found_task = self.find_task(chosen_task.title)
-            if new_stress and found_task:
+            if new_stress != '' and found_task:
                 found_task.stress = new_stress
+                found_task.last_refreshed = datetime.now()
 
     def reset_screen(self):
         os.system("clear")
