@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 import tempfile
@@ -62,8 +62,8 @@ class Task:
     stress: int
     is_complete: bool = False
     due_date: datetime = None
-    last_refreshed: datetime = _DEFAULT_REFRESHED
-
+    last_refreshed: datetime = field(default_factory=datetime.now)
+    
     def __key(self):
         return (self.title, self.description)
 
@@ -87,7 +87,10 @@ class Task:
         return False
 
     def get_date_str(self, datetime: datetime):
-        return f"{datetime.day}/{datetime.month}/{datetime.year}"
+        delta = datetime - datetime.now()
+        if delta < timedelta(0):
+            return f"-{delta.days} days"
+        return f"+{delta.days} days"
 
     def pretty_print(self):
         self.headline()
@@ -125,7 +128,7 @@ class Task:
             "difficulty": self.difficulty,
             "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
-            "last_refreshed": self.last_refreshed,
+            "last_refreshed": self.last_refreshed.isoformat(),
         }
 
 
@@ -136,9 +139,13 @@ class App:
         self.reset_screen()
 
     def load(self):
-        with open("/Users/haenchen/tasks.json", "r") as db:
-            json_tasks = json.loads(db.read())
-            self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
+        try:
+            with open("/Users/haenchen/tasks.json", "r") as db:
+                json_tasks = json.loads(db.read())
+                self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
+        except Exception as e:
+            print(f"Error: {e}")
+            self.all_tasks = []
 
     def save(self):
         with open("/Users/haenchen/tasks.json", "w") as db:
@@ -316,9 +323,10 @@ class App:
             if new_stress == "x":
                 return
             found_task = self.find_task(chosen_task.title)
-            if new_stress != '' and found_task:
-                found_task.stress = new_stress
+            if found_task:
                 found_task.last_refreshed = datetime.now()
+                if new_stress != "":
+                    found_task.stress = new_stress
 
     def reset_screen(self):
         os.system("clear")
