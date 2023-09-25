@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import json
+import math
 import os
 import tempfile
 from subprocess import call
@@ -63,7 +64,7 @@ class Task:
     is_complete: bool = False
     due_date: datetime = None
     last_refreshed: datetime = field(default_factory=datetime.now)
-    
+
     def __key(self):
         return (self.title, self.description)
 
@@ -82,7 +83,7 @@ class Task:
         if due_in < timedelta(0):
             # Already due
             return True
-        elif due_in < timedelta(days=self.duration * 2 / 60):
+        elif due_in < timedelta(days=math.ceil(self.duration / 60) * 2):
             return True
         return False
 
@@ -175,18 +176,18 @@ class App:
                 month = month + 1
             if now.month > month:
                 year = year + 1
-            return datetime(day=day, month=month, year=year)
+            return datetime(day=day, month=month, year=year, hour=9)
         if len(parts) == 2:
             year = now.year
             day = int(parts[0])
-            month = int(parts[1])
+            month = int(parts[1]) - 1
             if now.day > day:
                 month = month + 1
             if now.month > month:
                 year = year + 1
-            return datetime(day=day, month=month, year=year)
+            return datetime(day=day, month=month, year=year, hour=9)
         if len(parts) == 3:
-            return datetime(day=parts[0], month=parts[1], year=parts[2])
+            return datetime(day=parts[0], month=parts[1], year=parts[2], hour=9)
 
     def get_numerical_prompt(self, prompt_text, also_accept=None, input_func=None):
         while True:
