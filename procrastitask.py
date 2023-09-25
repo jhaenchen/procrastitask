@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import json
 import math
 import os
+import subprocess
 import tempfile
 from subprocess import call
 from time import sleep
@@ -223,7 +224,7 @@ class App:
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
 
-    def list_all_tasks(self, task_list_override=None, extend_cache=False):
+    def list_all_tasks(self, task_list_override=None, extend_cache=False, also_print=True):
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
@@ -234,14 +235,21 @@ class App:
             else (max(-1, *[key for key in self.cached_listed_tasks]) + 1)
         )
         if len(incomplete_tasks) == 0:
-            print("You have no available tasks.")
+            if also_print:
+                print("You have no available tasks.")
+            return []
 
         incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
+        to_return = []
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
-            print(f"[{true_idx}] {task.headline()}")
+            to_return.append(f"[{true_idx}] {task.headline()}")
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
+
+        if also_print:
+            [print(el) for el in to_return]
+        return to_return
 
     def _is_number(self, num_string):
         try:
@@ -331,7 +339,9 @@ class App:
 
     def reset_screen(self):
         os.system("clear")
-        print("\nWelcome to Procrastinator's Companion\n")
+        print(self.WELCOME_MESSAGE)
+
+    WELCOME_MESSAGE = "\nWelcome to Procrastinator's Companion\n"
 
     def edit_task(self, task: Task):
         (
@@ -376,11 +386,37 @@ class App:
         )
         task.complete = bool(is_complete)
 
+    def paged_task_list(self):
+        self.reset_screen()
+        rows = int(
+            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
+                "utf-8"
+            )
+        )
+        columns = int(
+            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode(
+                "utf-8"
+            )
+        )
+        pos = [0, 0]
+        rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
+        rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
+        would_print_collection = self.list_all_tasks(also_print=False)
+        
+        print_until = 0
+        for idx, candidate in enumerate(would_print_collection):
+            new_y = pos[1] + math.ceil(len(candidate) / columns)
+            if new_y < rows:
+                pos[1] = new_y
+                print_until += 1
+        for to_print in would_print_collection[:print_until]:
+            print(to_print)
+
+    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit = task, xdigit = complete, ddigit = delete, s = save, r = refresh): "
+    
     def display_home(self):
         print("\n")
-        command = input(
-            "Enter your command (new = n, list = ls, digit = task, xdigit = complete, ddigit = delete, s = save, r = refresh): "
-        )
+        command = input(self.CORE_COMMAND_PROMPT)
         self.reset_screen()
 
         if len(command) == 0:
@@ -388,7 +424,8 @@ class App:
         if command == "n":
             self.all_tasks.append(self.create_new_task())
         if command == "ls":
-            self.list_all_tasks()
+            self.paged_task_list()
+            #self.list_all_tasks()
         if self._is_number(command):
             selected_task = self.cached_listed_tasks.get(int(command))
             selected_task.pretty_print()
