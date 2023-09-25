@@ -224,7 +224,7 @@ class App:
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
 
-    def list_all_tasks(self, task_list_override=None, extend_cache=False):
+    def list_all_tasks(self, task_list_override=None, extend_cache=False, also_print=True):
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
@@ -235,14 +235,21 @@ class App:
             else (max(-1, *[key for key in self.cached_listed_tasks]) + 1)
         )
         if len(incomplete_tasks) == 0:
-            print("You have no available tasks.")
+            if also_print:
+                print("You have no available tasks.")
+            return []
 
         incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
+        to_return = []
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
-            print(f"[{true_idx}] {task.headline()}")
+            to_return.append(f"[{true_idx}] {task.headline()}")
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
+
+        if also_print:
+            [print(el) for el in to_return]
+        return to_return
 
     def _is_number(self, num_string):
         try:
@@ -391,10 +398,11 @@ class App:
                 "utf-8"
             )
         )
-        would_print_collection = []
-        for idx, task in enumerate(self.all_tasks):
-            would_print_collection.append(f"[{idx}] {task.title}")
         pos = [0, 0]
+        rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
+        rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
+        would_print_collection = self.list_all_tasks(also_print=False)
+        
         print_until = 0
         for idx, candidate in enumerate(would_print_collection):
             new_y = pos[1] + math.ceil(len(candidate) / columns)
@@ -404,11 +412,11 @@ class App:
         for to_print in would_print_collection[:print_until]:
             print(to_print)
 
+    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit = task, xdigit = complete, ddigit = delete, s = save, r = refresh): "
+    
     def display_home(self):
         print("\n")
-        command = input(
-            "Enter your command (new = n, list = ls, digit = task, xdigit = complete, ddigit = delete, s = save, r = refresh): "
-        )
+        command = input(self.CORE_COMMAND_PROMPT)
         self.reset_screen()
 
         if len(command) == 0:
