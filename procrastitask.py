@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 import json
+import math
 import os
+import subprocess
 import tempfile
 from subprocess import call
 from time import sleep
@@ -63,7 +65,7 @@ class Task:
     is_complete: bool = False
     due_date: datetime = None
     last_refreshed: datetime = field(default_factory=datetime.now)
-    
+
     def __key(self):
         return (self.title, self.description)
 
@@ -330,7 +332,9 @@ class App:
 
     def reset_screen(self):
         os.system("clear")
-        print("\nWelcome to Procrastinator's Companion\n")
+        print(self.WELCOME_MESSAGE)
+
+    WELCOME_MESSAGE = "\nWelcome to Procrastinator's Companion\n"
 
     def edit_task(self, task: Task):
         (
@@ -375,6 +379,31 @@ class App:
         )
         task.complete = bool(is_complete)
 
+    def paged_task_list(self):
+        self.reset_screen()
+        rows = int(
+            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
+                "utf-8"
+            )
+        )
+        columns = int(
+            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode(
+                "utf-8"
+            )
+        )
+        would_print_collection = []
+        for idx, task in enumerate(self.all_tasks):
+            would_print_collection.append(f"[{idx}] {task.title}")
+        pos = [0, 0]
+        print_until = 0
+        for idx, candidate in enumerate(would_print_collection):
+            new_y = pos[1] + math.ceil(len(candidate) / columns)
+            if new_y < rows:
+                pos[1] = new_y
+                print_until += 1
+        for to_print in would_print_collection[:print_until]:
+            print(to_print)
+
     def display_home(self):
         print("\n")
         command = input(
@@ -387,7 +416,8 @@ class App:
         if command == "n":
             self.all_tasks.append(self.create_new_task())
         if command == "ls":
-            self.list_all_tasks()
+            self.paged_task_list()
+            #self.list_all_tasks()
         if self._is_number(command):
             selected_task = self.cached_listed_tasks.get(int(command))
             selected_task.pretty_print()
