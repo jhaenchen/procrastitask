@@ -7,7 +7,8 @@ import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime, timedelta
-from typing import List
+from typing import Callable, List, TypeVar
+import uuid
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -65,6 +66,7 @@ class Task:
     is_complete: bool = False
     due_date: datetime = None
     last_refreshed: datetime = field(default_factory=datetime.now)
+    identifier: str = str(uuid.uuid4())
 
     def __key(self):
         return (self.title, self.description)
@@ -91,7 +93,7 @@ class Task:
     def get_date_str(self, datetime: datetime):
         delta = datetime - datetime.now()
         if delta < timedelta(0):
-            return f"-{delta.days} days"
+            return f"{delta.days} days"
         return f"+{delta.days} days"
 
     def pretty_print(self):
@@ -119,6 +121,7 @@ class Task:
             last_refreshed=datetime.fromisoformat(last_refreshed)
             if last_refreshed
             else None or Task._DEFAULT_REFRESHED,
+            identifier=incoming_dict.get("identifier", str(uuid.uuid4())),
         )
 
     def to_dict(self):
@@ -131,13 +134,14 @@ class Task:
             "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
             "last_refreshed": self.last_refreshed.isoformat(),
+            "identifier": self.identifier,
         }
 
 
 class App:
     def __init__(self):
         self.all_tasks = []
-        self.cached_listed_tasks = {}
+        self.cached_listed_tasks: dict[int, Task] = {}
         self.reset_screen()
 
     def load(self):
@@ -201,6 +205,49 @@ class App:
                 print(f"\nBad input: {result}. Try again.\n")
                 sleep(5)
 
+    T = TypeVar("T")
+
+    def get_input_with_validation_mapper(
+        self, prompt: str, validator_mapper: Callable[[str], T] = lambda s: s
+    ) -> T:
+        while True:
+            result = input(prompt)
+            try:
+                mapped = validator_mapper(result)
+                return mapped
+            except ValueError:
+                print(f"\nBad input: {result}. Try again.\n")
+                sleep(5)
+
+    @property
+    def dependence_validator(self):
+        def to_return_validator(dependent_on: str) -> List[str]:
+            dependence_pieces = dependent_on.split(",")
+            mapped_ids = []
+            for potential_val in dependence_pieces:
+                mapped_to = None
+                # Is the given val an ID?
+                for task in self.all_tasks:
+                    if task.identifier == potential_val:
+                        mapped_to = potential_val
+                # If we didn't find a perfect match, try index
+                if mapped_to is None:
+                    try:
+                        target_idx = int(potential_val)
+                        idx_looked_up_task = self.cached_listed_tasks.get(target_idx)
+                        if idx_looked_up_task:
+                            mapped_to = idx_looked_up_task.identifier
+                    except ValueError:
+                        pass
+
+                if mapped_to is not None:
+                    mapped_ids.append(mapped_to)
+                else:
+                    raise ValueError("Did not find corresponding task for that value")
+            return mapped_ids
+
+        return to_return_validator
+
     def create_new_task(self):
         task_title = input("Enter your task: ")
         task_description = input("Enter description: ")
@@ -208,6 +255,10 @@ class App:
         stress_level = self.get_numerical_prompt("Stress level: ")
         difficulty = self.get_numerical_prompt("Difficulty: ")
         date = self.get_date_prompt("Due date:")
+        dependent_on = self.get_input_with_validation_mapper(
+            "Dependent on tasks: ", self.dependence_validator
+        )
+
         created_task = Task(
             title=task_title,
             description=task_description,
@@ -224,7 +275,9 @@ class App:
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
 
-    def list_all_tasks(self, task_list_override=None, extend_cache=False, also_print=True):
+    def list_all_tasks(
+        self, task_list_override=None, extend_cache=False, also_print=True
+    ):
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
@@ -384,7 +437,7 @@ class App:
         task.duration = self.get_numerical_prompt(
             "", input_func=lambda *args, **kwargs: duration
         )
-        task.complete = bool(is_complete)
+        task.is_complete = bool(is_complete)
 
     def paged_task_list(self):
         self.reset_screen()
@@ -402,7 +455,7 @@ class App:
         rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
         rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
         would_print_collection = self.list_all_tasks(also_print=False)
-        
+
         print_until = 0
         for idx, candidate in enumerate(would_print_collection):
             new_y = pos[1] + math.ceil(len(candidate) / columns)
@@ -413,7 +466,7 @@ class App:
             print(to_print)
 
     CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit = task, xdigit = complete, ddigit = delete, s = save, r = refresh): "
-    
+
     def display_home(self):
         print("\n")
         command = input(self.CORE_COMMAND_PROMPT)
@@ -425,13 +478,13 @@ class App:
             self.all_tasks.append(self.create_new_task())
         if command == "ls":
             self.paged_task_list()
-            #self.list_all_tasks()
+            # self.list_all_tasks()
         if self._is_number(command):
             selected_task = self.cached_listed_tasks.get(int(command))
             selected_task.pretty_print()
         if command.startswith("x"):
             index_val = command.split("x")[1]
-            selected_task = self.cached_listed_tasks.get(int(index_val))
+            selected_task: Task = self.cached_listed_tasks.get(int(index_val))
             selected_task.complete()
             print("\nTask completed.")
         if command.startswith("d"):
