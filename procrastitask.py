@@ -7,7 +7,9 @@ import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime, timedelta
-from typing import List
+from typing import Callable, List, Optional, TypeVar
+import uuid
+import ast
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -65,6 +67,8 @@ class Task:
     is_complete: bool = False
     due_date: datetime = None
     last_refreshed: datetime = field(default_factory=datetime.now)
+    identifier: str = str(uuid.uuid4())
+    dependent_on: List[int] = field(default_factory=lambda: [])
 
     def __key(self):
         return (self.title, self.description)
@@ -76,6 +80,13 @@ class Task:
         if isinstance(other, Task):
             return self.__key() == other.__key()
         return NotImplemented
+
+    def get_dependent_count(self, all_tasks: List["Task"]) -> int:
+        count = 0
+        for task in all_tasks:
+            if self.identifier in task.dependent_on:
+                count += 1
+        return count
 
     def is_due_soon(self):
         if not self.due_date:
@@ -94,9 +105,26 @@ class Task:
             return f"-{delta.days} days"
         return f"+{delta.days} days"
 
-    def pretty_print(self):
-        self.headline()
+    def pretty_print(self, all_tasks: List["Task"]):
+        print(self.headline())
         print(f"{self.description}\n")
+        dependents = self.find_dependents(all_tasks)
+        if dependents:
+            print(f"Dependent Tasks: \n")
+            for dependent in dependents:
+                found = [
+                    task
+                    for task in all_tasks
+                    if task.identifier == dependent.identifier
+                ][0]
+                print(f"* [{found.identifier}] {found.title}\n")
+
+    def find_dependents(self, all_tasks: List["Task"]) -> List["Task"]:
+        to_return = []
+        for task in all_tasks:
+            if self.identifier in task.dependent_on:
+                to_return.append(task)
+        return to_return
 
     def headline(self):
         return f"{self.title} ({self.duration}min, stress: {self.stress}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
@@ -119,6 +147,8 @@ class Task:
             last_refreshed=datetime.fromisoformat(last_refreshed)
             if last_refreshed
             else None or Task._DEFAULT_REFRESHED,
+            identifier=incoming_dict.get("identifier", str(uuid.uuid4())),
+            dependent_on=incoming_dict.get("dependent_on", []),
         )
 
     def to_dict(self):
@@ -131,6 +161,8 @@ class Task:
             "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
             "last_refreshed": self.last_refreshed.isoformat(),
+            "identifier": self.identifier,
+            "dependent_on": self.dependent_on,
         }
 
 
@@ -201,6 +233,52 @@ class App:
                 print(f"\nBad input: {result}. Try again.\n")
                 sleep(5)
 
+    T = TypeVar("T")
+
+    def get_input_with_validation_mapper(
+        self, prompt: str, validator_mapper: Callable[[str], T] = lambda s: s
+    ) -> T:
+        while True:
+            result = input(prompt)
+            try:
+                mapped = validator_mapper(result)
+                return mapped
+            except ValueError:
+                print(f"\nBad input: {result}. Try again.\n")
+                sleep(5)
+
+    @property
+    def dependence_validator(self):
+        def to_return_validator(dependent_on: str) -> List[str]:
+            dependence_pieces = dependent_on.split(",")
+            # Empty string yields ['']
+            if dependence_pieces == [""]:
+                return []
+            mapped_ids = []
+            for potential_val in dependence_pieces:
+                mapped_to = None
+                # Is the given val an ID?
+                for task in self.all_tasks:
+                    if task.identifier == potential_val:
+                        mapped_to = potential_val
+                # If we didn't find a perfect match, try index
+                if mapped_to is None:
+                    try:
+                        target_idx = int(potential_val)
+                        idx_looked_up_task = self.cached_listed_tasks.get(target_idx)
+                        if idx_looked_up_task:
+                            mapped_to = idx_looked_up_task.identifier
+                    except ValueError:
+                        pass
+
+                if mapped_to is not None:
+                    mapped_ids.append(mapped_to)
+                else:
+                    raise ValueError("Did not find corresponding task for that value")
+            return mapped_ids
+
+        return to_return_validator
+
     def create_new_task(self):
         task_title = input("Enter your task: ")
         task_description = input("Enter description: ")
@@ -215,6 +293,7 @@ class App:
             stress=stress_level,
             difficulty=difficulty,
             due_date=date,
+            dependent_on=dependent_on,
         )
         return created_task
 
@@ -228,7 +307,11 @@ class App:
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
-        incomplete_tasks = [task for task in tasks if task.is_complete == False]
+        incomplete_tasks = [
+            task
+            for task in tasks
+            if task.is_complete == False and task.dependent_on == []
+        ]
         start_index = (
             0
             if not extend_cache
@@ -243,7 +326,10 @@ class App:
         to_return = []
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
-            to_return.append(f"[{true_idx}] {task.headline()}")
+            dependent_count = task.get_dependent_count(tasks)
+            to_return.append(
+                f"[{true_idx}] {f'(+{dependent_count})' if dependent_count else ''} {task.headline()}"
+            )
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
 
@@ -351,6 +437,7 @@ class App:
             difficulty,
             stress,
             duration,
+            dependent_on,
             is_complete,
         ) = rlinput(
             multiprompt={
@@ -360,9 +447,11 @@ class App:
                 "Difficulty:": task.difficulty,
                 "Stress:": task.stress,
                 "Duration:": task.duration,
+                "Dependent On:": task.dependent_on,
                 "Is Complete:": task.is_complete,
             }
         )
+        task.dependent_on = ast.literal_eval(dependent_on)
         task.title = title
 
         task.description = description
@@ -412,8 +501,17 @@ class App:
         for to_print in would_print_collection[:print_until]:
             print(to_print)
 
-    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit = task, xdigit = complete, ddigit = delete, s = save, r = refresh): "
-    
+    def find_task_by_any_id(self, input_str: str) -> Optional[Task]:
+        if self._is_number(input_str):
+            selected_task = self.cached_listed_tasks.get(int(input_str))
+            if selected_task:
+                return selected_task
+        found_id_matches = [task for task in self.all_tasks if task.identifier == input_str]
+        if found_id_matches:
+            return found_id_matches[0]
+
+    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit = view, xdigit = complete, ddigit = delete, s = save, r = refresh): "
+
     def display_home(self):
         print("\n")
         command = input(self.CORE_COMMAND_PROMPT)
@@ -425,10 +523,10 @@ class App:
             self.all_tasks.append(self.create_new_task())
         if command == "ls":
             self.paged_task_list()
-            #self.list_all_tasks()
-        if self._is_number(command):
-            selected_task = self.cached_listed_tasks.get(int(command))
-            selected_task.pretty_print()
+            # self.list_all_tasks()
+        if self.find_task_by_any_id(command):
+            found_task = self.find_task_by_any_id(command)
+            found_task.pretty_print(self.all_tasks)
         if command.startswith("x"):
             index_val = command.split("x")[1]
             selected_task = self.cached_listed_tasks.get(int(index_val))
@@ -442,8 +540,8 @@ class App:
         if command == "exit":
             exit()
         if command.startswith("e"):
-            index_val = command.split("e")[1]
-            selected_task = self.cached_listed_tasks.get(int(index_val))
+            index_val = command[1:]
+            selected_task = self.find_task_by_any_id(index_val)
             self.edit_task(selected_task)
         if command == "s":
             self.save()
