@@ -95,6 +95,8 @@ class Task:
         if due_in < timedelta(0):
             # Already due
             return True
+        # "Soon" is defined as +2 days for every hour of effort
+        # Meaning a two hour task is due soon in < 4 days
         elif due_in < timedelta(days=math.ceil(self.duration / 60) * 2):
             return True
         return False
@@ -327,8 +329,9 @@ class App:
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
             dependent_count = task.get_dependent_count(tasks)
+            due_soon_indicator = "⏰ " if task.is_due_soon() else ''
             to_return.append(
-                f"[{true_idx}] {f' (+{dependent_count})' if dependent_count else ''} {task.headline()}"
+                f"[{true_idx}]  {due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
             )
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
