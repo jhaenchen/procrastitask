@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Callable, List, Optional, TypeVar
 import uuid
 import ast
+import icalendar
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -81,6 +82,22 @@ class Task:
             return self.__key() == other.__key()
         return NotImplemented
 
+    def create_and_launch_ical_event(self):
+        cal = icalendar.Calendar()
+        cal.add('prodid', '-//My calendar product//mxm.dk//')
+        cal.add('version', '2.0')
+        event = icalendar.Event()
+        event.add('summary', self.title)
+        event.add('description', self.description)
+        event.add('dtstart', datetime.now())
+        event.add('dtend', datetime.now() + timedelta(minutes=self.duration))
+        cal.add_component(event)
+        directory = tempfile.mkdtemp()
+        f = open(os.path.join(directory, 'example.ics'), 'wb')
+        f.write(cal.to_ical())
+        f.close()
+        subprocess.call(('open', f.name))
+    
     def get_dependent_count(self, all_tasks: List["Task"]) -> int:
         count = 0
         for task in all_tasks:
@@ -513,7 +530,7 @@ class App:
         if found_id_matches:
             return found_id_matches[0]
 
-    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit = view, xdigit = complete, ddigit = delete, s = save, r = refresh): "
+    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit/id = view, xdigit = complete, ddigit = delete, s = save, r = refresh, e = edit, caldigit = calendar): "
 
     def display_home(self):
         print("\n")
@@ -556,6 +573,9 @@ class App:
             self.wizard()
         if command == "r":
             self.refresh_stress_levels()
+        if command.startswith("cal"):
+            found = self.find_task_by_any_id(command[3:])
+            found.create_and_launch_ical_event()
         return
 
 
