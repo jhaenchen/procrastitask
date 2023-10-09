@@ -68,7 +68,7 @@ class Task:
     is_complete: bool = False
     due_date: datetime = None
     last_refreshed: datetime = field(default_factory=datetime.now)
-    identifier: str = str(uuid.uuid4())
+    identifier: str = field(default_factory=lambda: str(uuid.uuid4()))
     dependent_on: List[int] = field(default_factory=lambda: [])
 
     def __key(self):
@@ -84,20 +84,20 @@ class Task:
 
     def create_and_launch_ical_event(self):
         cal = icalendar.Calendar()
-        cal.add('prodid', '-//My calendar product//mxm.dk//')
-        cal.add('version', '2.0')
+        cal.add("prodid", "-//My calendar product//mxm.dk//")
+        cal.add("version", "2.0")
         event = icalendar.Event()
-        event.add('summary', self.title)
-        event.add('description', self.description)
-        event.add('dtstart', datetime.now())
-        event.add('dtend', datetime.now() + timedelta(minutes=self.duration))
+        event.add("summary", self.title)
+        event.add("description", self.description)
+        event.add("dtstart", datetime.now())
+        event.add("dtend", datetime.now() + timedelta(minutes=self.duration))
         cal.add_component(event)
         directory = tempfile.mkdtemp()
-        f = open(os.path.join(directory, 'example.ics'), 'wb')
+        f = open(os.path.join(directory, "example.ics"), "wb")
         f.write(cal.to_ical())
         f.close()
-        subprocess.call(('open', f.name))
-    
+        subprocess.call(("open", f.name))
+
     def get_dependent_count(self, all_tasks: List["Task"]) -> int:
         count = 0
         for task in all_tasks:
@@ -305,6 +305,9 @@ class App:
         stress_level = self.get_numerical_prompt("Stress level: ")
         difficulty = self.get_numerical_prompt("Difficulty: ")
         date = self.get_date_prompt("Due date:")
+        dependent_on = self.get_input_with_validation_mapper(
+            "Dependent on tasks: ", self.dependence_validator
+        )
         created_task = Task(
             title=task_title,
             description=task_description,
@@ -322,7 +325,9 @@ class App:
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
 
-    def list_all_tasks(self, task_list_override=None, extend_cache=False, also_print=True):
+    def list_all_tasks(
+        self, task_list_override=None, extend_cache=False, also_print=True
+    ):
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
@@ -346,7 +351,7 @@ class App:
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
             dependent_count = task.get_dependent_count(tasks)
-            due_soon_indicator = "⏰ " if task.is_due_soon() else ''
+            due_soon_indicator = "⏰ " if task.is_due_soon() else ""
             to_return.append(
                 f"[{true_idx}]  {due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
             )
@@ -471,7 +476,10 @@ class App:
                 "Is Complete:": task.is_complete,
             }
         )
-        task.dependent_on = ast.literal_eval(dependent_on)
+        task.dependent_on = [
+            self.find_task_by_any_id(el).identifier
+            for el in ast.literal_eval(dependent_on)
+        ]
         task.title = title
 
         task.description = description
@@ -511,7 +519,7 @@ class App:
         rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
         rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
         would_print_collection = self.list_all_tasks(also_print=False)
-        
+
         print_until = 0
         for idx, candidate in enumerate(would_print_collection):
             new_y = pos[1] + math.ceil(len(candidate) / columns)
@@ -526,7 +534,9 @@ class App:
             selected_task = self.cached_listed_tasks.get(int(input_str))
             if selected_task:
                 return selected_task
-        found_id_matches = [task for task in self.all_tasks if task.identifier == input_str]
+        found_id_matches = [
+            task for task in self.all_tasks if task.identifier == input_str
+        ]
         if found_id_matches:
             return found_id_matches[0]
 
