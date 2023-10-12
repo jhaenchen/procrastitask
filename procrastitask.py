@@ -416,7 +416,7 @@ class App:
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if task.is_due_soon() else ""
             to_return.append(
-                f"[{true_idx}] {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
+                f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
             )
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
