@@ -91,8 +91,13 @@ class Task:
         event = icalendar.Event()
         event.add("summary", self.title)
         event.add("description", self.description)
-        event.add("dtstart", datetime.now())
-        event.add("dtend", datetime.now() + timedelta(minutes=self.duration))
+
+        def round_dt_up(dt, delta=timedelta(minutes=15)):
+            return datetime.min + math.ceil((dt - datetime.min) / delta) * delta
+
+        rounded_start = round_dt_up(datetime.now())
+        event.add("dtstart", rounded_start)
+        event.add("dtend", rounded_start + timedelta(minutes=self.duration))
         cal.add_component(event)
         directory = tempfile.mkdtemp()
         f = open(os.path.join(directory, "example.ics"), "wb")
