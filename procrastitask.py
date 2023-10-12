@@ -407,12 +407,16 @@ class App:
 
         incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
         to_return = []
+
+        max_digit_length = (len(incomplete_tasks) + start_index) / 10
+
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
+            space_padding = " " * (int(max_digit_length) - int(true_idx / 10))
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if task.is_due_soon() else ""
             to_return.append(
-                f"[{true_idx}]  {due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
+                f"[{true_idx}] {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
             )
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
