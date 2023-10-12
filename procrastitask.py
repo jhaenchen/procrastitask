@@ -145,6 +145,14 @@ class Task:
                 to_return.append(task)
         return to_return
 
+    def dependent_tasks_complete(self, all_tasks: List["Task"]) -> bool:
+        saw_incomplete = False
+        for task_id in self.dependent_on:
+            found = [t for t in all_tasks if t.identifier == task_id][0]
+            if not found.is_complete:
+                saw_incomplete = True
+        return not saw_incomplete
+
     def headline(self):
         return f"{self.title} ({self.duration}min, stress: {self.stress}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
 
@@ -334,7 +342,7 @@ class App:
         incomplete_tasks = [
             task
             for task in tasks
-            if task.is_complete == False and task.dependent_on == []
+            if task.is_complete == False and task.dependent_tasks_complete(tasks)
         ]
         start_index = (
             0
