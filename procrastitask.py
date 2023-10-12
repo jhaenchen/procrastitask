@@ -573,7 +573,7 @@ class App:
         )
         task.complete = bool(is_complete)
 
-    def paged_task_list(self):
+    def paged_task_list(self, page_offset=0):
         self.reset_screen()
         rows = int(
             subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
@@ -594,12 +594,21 @@ class App:
                 "* Please refresh your tasks"
             ] + would_print_collection
 
-        print_until = 0
-        for idx, candidate in enumerate(would_print_collection):
-            new_y = pos[1] + math.ceil(len(candidate) / columns)
-            if new_y < rows:
-                pos[1] = new_y
-                print_until += 1
+        pages_seen = 0
+        start_at = 0
+        while pages_seen != page_offset:
+            print_until = 0
+            for idx, candidate in enumerate(would_print_collection[start_at:]):
+                new_y = pos[1] + math.ceil(len(candidate) / columns)
+                if new_y < rows:
+                    pos[1] = new_y
+                    print_until += 1
+                else:
+                    pages_seen += 1
+                    start_at = idx
+
+        self.current_page = pages_seen
+
         for to_print in would_print_collection[:print_until]:
             print(to_print)
 
@@ -657,6 +666,10 @@ class App:
             self.wizard()
         if command == "r":
             self.refresh_stress_levels()
+        if command == ",":
+            self.paged_task_list(math.ceiling(self.current_page - 1, 0))
+        if command == ".":
+            self.paged_task_list(self.current_page + 1)
         if command.startswith("cal"):
             found = self.find_task_by_any_id(command[3:])
             found.create_and_launch_ical_event()
