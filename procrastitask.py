@@ -1,3 +1,4 @@
+from configparser import ConfigParser, NoSectionError
 from dataclasses import dataclass, field
 import json
 import math
@@ -197,11 +198,30 @@ class App:
     def __init__(self):
         self.all_tasks = []
         self.cached_listed_tasks = {}
+        self.config = self.config_loader()
         self.reset_screen()
 
+    TASKS_FILE_NAME = "tasks.json"
+    
+    def config_loader(self) -> dict:
+        config = {}
+        try:
+            Config = ConfigParser()
+            Config.read(self.get_config_path())
+            config = dict(Config.items("taks_config"))
+        except NoSectionError:
+            print("Config error, check formatting")
+        except:
+            raise
+        return config
+
+    def get_db_location(self):
+        dir = self.config.get("db_location", self.get_current_dir())
+        return dir + "/" + self.TASKS_FILE_NAME
+    
     def load(self):
         try:
-            with open("/Users/haenchen/tasks.json", "r") as db:
+            with open(self.get_db_location(), "r") as db:
                 json_tasks = json.loads(db.read())
                 self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
         except Exception as e:
@@ -209,10 +229,22 @@ class App:
             self.all_tasks = []
 
     def save(self):
-        with open("/Users/haenchen/tasks.json", "w") as db:
+        with open(self.get_db_location(), "w") as db:
             task_json_dicts = [task.to_dict() for task in self.all_tasks]
             json_str = json.dumps(task_json_dicts)
             db.write(json_str)
+
+    CONFIG_FILE_NAME = "config.ini"
+
+    def get_current_dir(self):
+        return os.path.dirname(os.path.realpath(__file__))
+    
+    def get_config_path(self):
+        dir_path = self.get_current_dir()
+        return dir_path + "/" + self.CONFIG_FILE_NAME
+
+    def does_local_config_file_exist(self):
+        return os.path.isfile(self.get_config_path())
 
     def delete_task(self, task_title):
         # print(f"Deleting title {task_title} from collection {self.all_tasks}")
