@@ -12,6 +12,7 @@ from typing import Callable, List, Optional, TypeVar
 import uuid
 import ast
 import icalendar
+import operator
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -202,7 +203,7 @@ class App:
         self.reset_screen()
 
     TASKS_FILE_NAME = "tasks.json"
-    
+
     def config_loader(self) -> dict:
         config = {}
         try:
@@ -218,7 +219,7 @@ class App:
     def get_db_location(self):
         dir = self.config.get("db_location", self.get_current_dir())
         return dir + "/" + self.TASKS_FILE_NAME
-    
+
     def load(self):
         try:
             with open(self.get_db_location(), "r") as db:
@@ -230,7 +231,12 @@ class App:
 
     def save(self):
         with open(self.get_db_location(), "w") as db:
-            task_json_dicts = [task.to_dict() for task in self.all_tasks]
+
+            def sorter(t: Task):
+                return (t.is_complete, t.title)
+
+            sorted_tasks = sorted(self.all_tasks, key=sorter)
+            task_json_dicts = [task.to_dict() for task in sorted_tasks]
             json_str = json.dumps(task_json_dicts)
             db.write(json_str)
 
@@ -238,7 +244,7 @@ class App:
 
     def get_current_dir(self):
         return os.path.dirname(os.path.realpath(__file__))
-    
+
     def get_config_path(self):
         dir_path = self.get_current_dir()
         return dir_path + "/" + self.CONFIG_FILE_NAME
