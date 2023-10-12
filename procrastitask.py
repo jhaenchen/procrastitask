@@ -256,6 +256,13 @@ class App:
         # print(f"Deleting title {task_title} from collection {self.all_tasks}")
         self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
 
+    def should_do_refresh(self):
+        min_refreshed = min(
+            [task.last_refreshed for task in self.all_tasks if not task.is_complete]
+        )
+        if datetime.now() - min_refreshed > timedelta(weeks=1):
+            return True
+
     def get_date_prompt(self, prompt_text: str, input_func=None):
         result = input_func(prompt_text) if input_func else input(prompt_text)
         try:
@@ -372,7 +379,11 @@ class App:
         return x_stress
 
     def list_all_tasks(
-        self, task_list_override=None, extend_cache=False, also_print=True
+        self,
+        task_list_override=None,
+        extend_cache=False,
+        also_print=True,
+        smart_filter=True,
     ):
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
@@ -380,7 +391,9 @@ class App:
         incomplete_tasks = [
             task
             for task in tasks
-            if task.is_complete == False and task.dependent_tasks_complete(tasks)
+            if (not smart_filter)
+            or not task.is_complete
+            and task.dependent_tasks_complete(tasks)
         ]
         start_index = (
             0
@@ -470,6 +483,8 @@ class App:
         seen_tasks = set()
         while True:
             self.reset_screen()
+            if not self.should_do_refresh():
+                print("List sufficiently refreshed.")
             remaining_tasks = [
                 t
                 for t in self.all_tasks
@@ -482,7 +497,7 @@ class App:
             if not chosen_task:
                 return
             seen_tasks.add(chosen_task)
-            self.list_all_tasks([chosen_task])
+            self.list_all_tasks([chosen_task], smart_filter=False)
             new_stress = self.get_numerical_prompt(
                 "Enter new stress level for task: ", also_accept=["x", ""]
             )
@@ -565,6 +580,10 @@ class App:
         rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
         rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
         would_print_collection = self.list_all_tasks(also_print=False)
+        if self.should_do_refresh():
+            would_print_collection = [
+                "* Please refresh your tasks"
+            ] + would_print_collection
 
         print_until = 0
         for idx, candidate in enumerate(would_print_collection):
@@ -638,6 +657,6 @@ class App:
 os.system("clear")
 app = App()
 app.load()
-app.list_all_tasks()
+app.paged_task_list()
 while True:
     app.display_home()
