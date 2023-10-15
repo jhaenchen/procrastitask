@@ -10,7 +10,7 @@ My methodology follows these principles:
 Commands:
 
 n: Create a new task
-e4/e1234-5678-9012: Edit the full details of task #4 in the list or the task with the ID 1234-5678-9012
+e4 OR e1234-5678-9012: Edit the full details of task #4 in the list or the task with the ID 1234-5678-9012
 4: View the details of task #4 in the list
 d4: Delete (not complete) task #4 in the list
 x4: Complete task #4 in the list
