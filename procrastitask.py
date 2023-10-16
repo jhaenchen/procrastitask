@@ -227,6 +227,10 @@ class App:
 
     def load(self):
         try:
+            if not os.path.isfile(self.get_db_location()):
+                with open(self.get_db_location(), "a") as f:
+                    f.write("[]")
+
             with open(self.get_db_location(), "r") as db:
                 json_tasks = json.loads(db.read())
                 self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
@@ -262,9 +266,12 @@ class App:
         self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
 
     def should_do_refresh(self):
-        min_refreshed = min(
-            [task.last_refreshed for task in self.all_tasks if not task.is_complete]
-        )
+        incomplete_tasks_dates = [
+            task.last_refreshed for task in self.all_tasks if not task.is_complete
+        ]
+        if not incomplete_tasks_dates:
+            return False
+        min_refreshed = min(incomplete_tasks_dates)
         if datetime.now() - min_refreshed > timedelta(weeks=1):
             return True
 
