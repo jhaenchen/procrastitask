@@ -9,6 +9,7 @@ My methodology follows these principles:
 
 Commands:
 
+```
 n: Create a new task
 e4 OR e1234-5678-9012: Edit the full details of task #4 in the list or the task with the ID 1234-5678-9012
 4: View the details of task #4 in the list
@@ -17,6 +18,7 @@ x4: Complete task #4 in the list
 r: Refresh stress counts in the order of the least recently updated
 w: Help choose a task based on time availability and mental energy to spend
 cal4: Create a calendar event for task #4 in the list and open it in my Calendar app
+```
 
 You may configure an alternate location for the storage of your data. This allows you to store the file to a place like Dropbox or iCloud and view it on your phone, since it's just JSON. It also helps you back up your tasks.
 
