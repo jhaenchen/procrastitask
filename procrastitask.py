@@ -227,10 +227,6 @@ class App:
 
     def load(self):
         try:
-            if not os.path.isfile(self.get_db_location()):
-                with open(self.get_db_location(), "a") as f:
-                    f.write("[]")
-
             with open(self.get_db_location(), "r") as db:
                 json_tasks = json.loads(db.read())
                 self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
@@ -297,7 +293,7 @@ class App:
         if len(parts) == 2:
             year = now.year
             day = int(parts[0])
-            month = int(parts[1]) - 1
+            month = int(parts[1])
             if now.day > day:
                 month = month + 1
             if now.month > month:
