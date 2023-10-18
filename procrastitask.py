@@ -35,7 +35,7 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
         # do the parsing with `tf` using regular File operations.
         # for instance:
         tf.seek(0)
-        edited_message = str(tf.read())
+        edited_message = str(tf.read().decode())
 
         to_return = []
 
@@ -48,7 +48,7 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
                     first_part = first_part.split(multiprompt_items[next_part_idx][0])[
                         0
                     ]
-                formatted = first_part[:-2]
+                formatted = first_part[:-1]
                 formatted = None if formatted == "None" else formatted
                 to_return.append(formatted)
         else:
@@ -359,6 +359,84 @@ class App:
 
         return to_return_validator
 
+    def edit_or_create_task(self, task_to_edit: Optional[Task] = None) -> Task:
+        title = task_to_edit.title if task_to_edit else ""
+        description = task_to_edit.description if task_to_edit else ""
+        due_date = task_to_edit.due_date if task_to_edit else ""
+        difficulty = task_to_edit.difficulty if task_to_edit else ""
+        stress = task_to_edit.stress if task_to_edit else ""
+        duration = task_to_edit.duration if task_to_edit else ""
+        dependent_on = task_to_edit.dependent_on if task_to_edit else []
+        is_complete = task_to_edit.is_complete if task_to_edit else False
+        (
+            title,
+            description,
+            due_date,
+            difficulty,
+            stress,
+            duration,
+            dependent_on,
+            is_complete,
+        ) = rlinput(
+            multiprompt={
+                "Title:": title,
+                "Description:": description,
+                "Due Date:": due_date,
+                "Difficulty:": difficulty,
+                "Stress:": stress,
+                "Duration:": duration,
+                "Dependent On:": dependent_on,
+                "Is Complete:": is_complete,
+            }
+        )
+        dependent_on = [
+            self.find_task_by_any_id(el).identifier
+            for el in ast.literal_eval(dependent_on)
+        ]
+
+        due_date = (
+            self.get_date_prompt(
+                "",
+                input_func=lambda *args, **kwargs: due_date,
+            )
+            if due_date
+            else None
+        )
+        difficulty = self.get_numerical_prompt(
+            "",
+            input_func=lambda *args, **kwargs: difficulty,
+        )
+        stress = self.get_numerical_prompt(
+            "", input_func=lambda *args, **kwargs: stress
+        )
+        duration = self.get_numerical_prompt(
+            "", input_func=lambda *args, **kwargs: duration
+        )
+        is_complete = is_complete != "False"
+        if task_to_edit:
+            task_to_edit.title = title
+            task_to_edit.description = description
+            task_to_edit.dependent_on = dependent_on
+            task_to_edit.duration = duration
+            task_to_edit.difficulty = difficulty
+            task_to_edit.stress = stress
+            task_to_edit.is_complete = is_complete
+            return task_to_edit
+
+        created_task = Task(
+            title=title,
+            description=description,
+            duration=duration,
+            stress=stress,
+            difficulty=difficulty,
+            due_date=due_date,
+            dependent_on=dependent_on,
+        )
+        return created_task
+
+    def verbose_create_new_task(self):
+        return self.edit_or_create_task()
+
     def create_new_task(self):
         task_title = input("Enter your task: ")
         task_description = input("Enter description: ")
@@ -528,53 +606,7 @@ class App:
     WELCOME_MESSAGE = "\nWelcome to Procrastinator's Companion\n"
 
     def edit_task(self, task: Task):
-        (
-            title,
-            description,
-            due_date,
-            difficulty,
-            stress,
-            duration,
-            dependent_on,
-            is_complete,
-        ) = rlinput(
-            multiprompt={
-                "Title:": task.title,
-                "Description:": task.description,
-                "Due Date:": task.due_date,
-                "Difficulty:": task.difficulty,
-                "Stress:": task.stress,
-                "Duration:": task.duration,
-                "Dependent On:": task.dependent_on,
-                "Is Complete:": task.is_complete,
-            }
-        )
-        task.dependent_on = [
-            self.find_task_by_any_id(el).identifier
-            for el in ast.literal_eval(dependent_on)
-        ]
-        task.title = title
-
-        task.description = description
-        task.due_date = (
-            self.get_date_prompt(
-                "",
-                input_func=lambda *args, **kwargs: due_date,
-            )
-            if due_date
-            else None
-        )
-        task.difficulty = self.get_numerical_prompt(
-            "",
-            input_func=lambda *args, **kwargs: difficulty,
-        )
-        task.stress = self.get_numerical_prompt(
-            "", input_func=lambda *args, **kwargs: stress
-        )
-        task.duration = self.get_numerical_prompt(
-            "", input_func=lambda *args, **kwargs: duration
-        )
-        task.complete = bool(is_complete)
+        return self.edit_or_create_task(task)
 
     def paged_task_list(self):
         self.reset_screen()
@@ -628,6 +660,8 @@ class App:
             return
         if command == "n":
             self.all_tasks.append(self.create_new_task())
+        if command == "nn":
+            self.all_tasks.append(self.edit_or_create_task())
         if command == "ls":
             self.paged_task_list()
             # self.list_all_tasks()
