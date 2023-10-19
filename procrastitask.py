@@ -288,7 +288,9 @@ class App:
                     task_json_dicts = [task.to_dict() for task in sorted_tasks]
                     json_str = json.dumps(task_json_dicts)
                     db.write(json_str)
-                except:
+                except Exception as e:
+                    print(f"Failed to save:{e}")
+                    sleep(5)
                     db.write(existing_content)
 
     CONFIG_FILE_NAME = "config.ini"
