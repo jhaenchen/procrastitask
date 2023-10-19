@@ -277,15 +277,19 @@ class App:
             self.all_tasks = []
 
     def save(self):
-        with open(self.get_db_location(), "w") as db:
+        with open(self.get_db_location(), "r") as existing_db:
+            existing_content = existing_db.read()
+            with open(self.get_db_location(), "w") as db:
+                try:
+                    def sorter(t: Task):
+                        return (t.is_complete, t.title)
 
-            def sorter(t: Task):
-                return (t.is_complete, t.title)
-
-            sorted_tasks = sorted(self.all_tasks, key=sorter)
-            task_json_dicts = [task.to_dict() for task in sorted_tasks]
-            json_str = json.dumps(task_json_dicts)
-            db.write(json_str)
+                    sorted_tasks = sorted(self.all_tasks, key=sorter)
+                    task_json_dicts = [task.to_dict() for task in sorted_tasks]
+                    json_str = json.dumps(task_json_dicts)
+                    db.write(json_str)
+                except:
+                    db.write(existing_content)
 
     CONFIG_FILE_NAME = "config.ini"
 
