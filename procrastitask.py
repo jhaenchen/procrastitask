@@ -12,7 +12,6 @@ from typing import Callable, List, Optional, TypeVar
 import uuid
 import ast
 import icalendar
-import operator
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -281,6 +280,7 @@ class App:
             existing_content = existing_db.read()
             with open(self.get_db_location(), "w") as db:
                 try:
+
                     def sorter(t: Task):
                         return (t.is_complete, t.title)
 
@@ -350,21 +350,31 @@ class App:
         if len(parts) == 3:
             return datetime(day=parts[0], month=parts[1], year=parts[2], hour=9)
 
-    def get_numerical_prompt(self, prompt_text, also_accept=None, input_func=None):
+    def get_numerical_prompt(
+        self, prompt_text, also_accept=None, input_func=None, raise_exception=False
+    ):
         while True:
             try:
                 result = input_func(prompt_text) if input_func else input(prompt_text)
                 return int(result)
             except ValueError:
+                message = (
+                    f"\nBad input for prompt {prompt_text}: {result}. Try again.\n"
+                )
                 if result in (also_accept or []):
                     return result
-                print(f"\nBad input: {result}. Try again.\n")
+                if raise_exception:
+                    raise ValueError(message)
+                print(message)
                 sleep(5)
 
     T = TypeVar("T")
 
     def get_input_with_validation_mapper(
-        self, prompt: str, validator_mapper: Callable[[str], T] = lambda s: s
+        self,
+        prompt: str,
+        validator_mapper: Callable[[str], T] = lambda s: s,
+        raise_exception=False,
     ) -> T:
         while True:
             result = input(prompt)
@@ -372,7 +382,10 @@ class App:
                 mapped = validator_mapper(result)
                 return mapped
             except ValueError:
-                print(f"\nBad input: {result}. Try again.\n")
+                message = f"\nBad input for prompt {prompt}: {result}. Try again.\n"
+                if raise_exception:
+                    raise ValueError(message)
+                print(message)
                 sleep(5)
 
     @property
@@ -408,103 +421,113 @@ class App:
         return to_return_validator
 
     def edit_or_create_task(self, task_to_edit: Optional[Task] = None) -> Task:
-        title = task_to_edit.title if task_to_edit else ""
-        description = task_to_edit.description if task_to_edit else ""
-        due_date = task_to_edit.due_date if task_to_edit else ""
-        difficulty = task_to_edit.difficulty if task_to_edit else ""
-        stress = task_to_edit.stress if task_to_edit else ""
-        duration = task_to_edit.duration if task_to_edit else ""
-        dependent_on = task_to_edit.dependent_on if task_to_edit else []
-        is_complete = task_to_edit.is_complete if task_to_edit else False
-        dynamic = (
-            task_to_edit.stress_dynamic.to_text()
-            if task_to_edit and task_to_edit.stress_dynamic
-            else ""
-        )
-        creation_date = task_to_edit.creation_date if task_to_edit else datetime.now()
-        (
-            title,
-            description,
-            due_date,
-            difficulty,
-            stress,
-            duration,
-            dependent_on,
-            is_complete,
-            dynamic,
-            creation_date,
-        ) = rlinput(
-            multiprompt={
-                "Title:": title,
-                "Description:": description,
-                "Due Date:": due_date,
-                "Difficulty:": difficulty,
-                "Stress:": stress,
-                "Duration:": duration,
-                "Dependent On:": dependent_on,
-                "Is Complete:": is_complete,
-                "Increase every x days:": dynamic,
-                "Creation Date:": creation_date,
-            }
-        )
-        dynamic = LinearDynamic.from_text(dynamic) if dynamic else None
-        dependent_on = [
-            self.find_task_by_any_id(el).identifier
-            for el in ast.literal_eval(dependent_on)
-        ]
+        while True:
+            try:
+                title = task_to_edit.title if task_to_edit else ""
+                description = task_to_edit.description if task_to_edit else ""
+                due_date = task_to_edit.due_date if task_to_edit else ""
+                difficulty = task_to_edit.difficulty if task_to_edit else ""
+                stress = task_to_edit.stress if task_to_edit else ""
+                duration = task_to_edit.duration if task_to_edit else ""
+                dependent_on = task_to_edit.dependent_on if task_to_edit else []
+                is_complete = task_to_edit.is_complete if task_to_edit else False
+                dynamic = (
+                    task_to_edit.stress_dynamic.to_text()
+                    if task_to_edit and task_to_edit.stress_dynamic
+                    else ""
+                )
+                creation_date = (
+                    task_to_edit.creation_date if task_to_edit else datetime.now()
+                )
+                (
+                    title,
+                    description,
+                    due_date,
+                    difficulty,
+                    stress,
+                    duration,
+                    dependent_on,
+                    is_complete,
+                    dynamic,
+                    creation_date,
+                ) = rlinput(
+                    multiprompt={
+                        "Title:": title,
+                        "Description:": description,
+                        "Due Date:": due_date,
+                        "Difficulty:": difficulty,
+                        "Stress:": stress,
+                        "Duration:": duration,
+                        "Dependent On:": dependent_on,
+                        "Is Complete:": is_complete,
+                        "Increase every x days:": dynamic,
+                        "Creation Date:": creation_date,
+                    }
+                )
+                dynamic = LinearDynamic.from_text(dynamic) if dynamic else None
+                dependent_on = [
+                    self.find_task_by_any_id(el).identifier
+                    for el in ast.literal_eval(dependent_on)
+                ]
 
-        creation_date = (
-            self.get_date_prompt(
-                "",
-                input_func=lambda *args, **kwargs: creation_date,
-            )
-            if creation_date
-            else None
-        )
+                creation_date = (
+                    self.get_date_prompt(
+                        "Creation Date",
+                        input_func=lambda *args, **kwargs: creation_date,
+                    )
+                    if creation_date
+                    else None
+                )
 
-        due_date = (
-            self.get_date_prompt(
-                "",
-                input_func=lambda *args, **kwargs: due_date,
-            )
-            if due_date
-            else None
-        )
-        difficulty = self.get_numerical_prompt(
-            "",
-            input_func=lambda *args, **kwargs: difficulty,
-        )
-        stress = self.get_numerical_prompt(
-            "", input_func=lambda *args, **kwargs: stress
-        )
-        duration = self.get_numerical_prompt(
-            "", input_func=lambda *args, **kwargs: duration
-        )
-        is_complete = is_complete != "False"
-        if task_to_edit:
-            task_to_edit.title = title
-            task_to_edit.description = description
-            task_to_edit.dependent_on = dependent_on
-            task_to_edit.duration = duration
-            task_to_edit.difficulty = difficulty
-            task_to_edit.stress = stress
-            task_to_edit.is_complete = is_complete
-            task_to_edit.stress_dynamic = dynamic
-            task_to_edit.creation_date = creation_date
-            return task_to_edit
+                due_date = (
+                    self.get_date_prompt(
+                        "Due Date",
+                        input_func=lambda *args, **kwargs: due_date,
+                    )
+                    if due_date
+                    else None
+                )
+                difficulty = self.get_numerical_prompt(
+                    "Difficulty",
+                    input_func=lambda *args, **kwargs: difficulty,
+                    raise_exception=True,
+                )
+                stress = self.get_numerical_prompt(
+                    "Stress", input_func=lambda *args, **kwargs: stress, raise_exception=True
+                )
+                duration = self.get_numerical_prompt(
+                    "Duration",
+                    input_func=lambda *args, **kwargs: duration,
+                    raise_exception=True,
+                )
+                is_complete = is_complete != "False"
+                if task_to_edit:
+                    task_to_edit.title = title
+                    task_to_edit.description = description
+                    task_to_edit.dependent_on = dependent_on
+                    task_to_edit.duration = duration
+                    task_to_edit.difficulty = difficulty
+                    task_to_edit.stress = stress
+                    task_to_edit.is_complete = is_complete
+                    task_to_edit.stress_dynamic = dynamic
+                    task_to_edit.creation_date = creation_date
+                    return task_to_edit
 
-        created_task = Task(
-            title=title,
-            description=description,
-            duration=duration,
-            stress=stress,
-            difficulty=difficulty,
-            due_date=due_date,
-            dependent_on=dependent_on,
-            stress_dynamic=dynamic,
-            creation_date=creation_date
-        )
-        return created_task
+                created_task = Task(
+                    title=title,
+                    description=description,
+                    duration=duration,
+                    stress=stress,
+                    difficulty=difficulty,
+                    due_date=due_date,
+                    dependent_on=dependent_on,
+                    stress_dynamic=dynamic,
+                    creation_date=creation_date,
+                )
+                return created_task
+            except ValueError as e:
+                print(e)
+                sleep(5)
 
     def verbose_create_new_task(self):
         return self.edit_or_create_task()
@@ -725,7 +748,7 @@ class App:
         if found_id_matches:
             return found_id_matches[0]
 
-    CORE_COMMAND_PROMPT = "Enter your command (new = n, list = ls, digit/id = view, xdigit = complete, ddigit = delete, s = save, r = refresh, e = edit, caldigit = calendar): "
+    CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4): "
 
     def display_home(self):
         print("\n")
