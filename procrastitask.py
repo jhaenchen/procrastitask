@@ -59,6 +59,28 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
 
 
 @dataclass
+class LinearDynamic:
+    """
+    In this dynamic, stress increases by 1 every X days.
+    """
+
+    # How often should the stress increase by one
+    interval: int
+
+    def apply(self, creation_date: datetime, base_stress: int) -> float:
+        offset = (datetime.now() - creation_date).days / self.interval
+        return base_stress + offset
+
+    @staticmethod
+    def from_text(text: str) -> "LinearDynamic":
+        parts = text.split("-")
+        return LinearDynamic(interval=int(parts[-1:][0]))
+
+    def to_text(self) -> "LinearDynamic":
+        return f"dynamic-linear-day-{self.interval}"
+
+
+@dataclass
 class Task:
     _DEFAULT_REFRESHED = datetime(1970, 1, 1)
 
@@ -72,6 +94,14 @@ class Task:
     last_refreshed: datetime = field(default_factory=datetime.now)
     identifier: str = field(default_factory=lambda: str(uuid.uuid4()))
     dependent_on: List[int] = field(default_factory=lambda: [])
+    stress_dynamic: LinearDynamic = None
+    creation_date: datetime = field(default_factory=datetime.now)
+
+    def get_rendered_stress(self):
+        base_stress = self.stress
+        if not self.stress_dynamic:
+            return base_stress
+        return self.stress_dynamic.apply(self.creation_date, self.stress)
 
     def __key(self):
         return (self.title, self.description)
@@ -161,7 +191,7 @@ class Task:
         return not saw_incomplete
 
     def headline(self):
-        return f"{self.title} ({self.duration}min, stress: {self.stress}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
+        return f"{self.title} ({self.duration}min, stress: {int(self.get_rendered_stress())}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
 
     def complete(self):
         self.is_complete = True
@@ -170,6 +200,8 @@ class Task:
     def from_dict(incoming_dict):
         due_date = incoming_dict.get("due_date")
         last_refreshed = incoming_dict.get("last_refreshed")
+        stress_dynamic = incoming_dict.get("stress_dynamic")
+        creation_date = incoming_dict.get("creation_date")
         return Task(
             title=incoming_dict["title"],
             description=incoming_dict["description"],
@@ -183,6 +215,12 @@ class Task:
             else None or Task._DEFAULT_REFRESHED,
             identifier=incoming_dict.get("identifier", str(uuid.uuid4())),
             dependent_on=incoming_dict.get("dependent_on", []),
+            stress_dynamic=LinearDynamic.from_text(stress_dynamic)
+            if stress_dynamic
+            else None,
+            creation_date=datetime.fromisoformat(creation_date)
+            if creation_date
+            else datetime.now(),
         )
 
     def to_dict(self):
@@ -197,6 +235,10 @@ class Task:
             "last_refreshed": self.last_refreshed.isoformat(),
             "identifier": self.identifier,
             "dependent_on": self.dependent_on,
+            "stress_dynamic": self.stress_dynamic.to_text()
+            if self.stress_dynamic
+            else None,
+            "creation_date": self.creation_date,
         }
 
 
@@ -368,6 +410,12 @@ class App:
         duration = task_to_edit.duration if task_to_edit else ""
         dependent_on = task_to_edit.dependent_on if task_to_edit else []
         is_complete = task_to_edit.is_complete if task_to_edit else False
+        dynamic = (
+            task_to_edit.stress_dynamic.to_text()
+            if task_to_edit and task_to_edit.stress_dynamic
+            else ""
+        )
+        creation_date = task_to_edit.creation_date if task_to_edit else datetime.now()
         (
             title,
             description,
@@ -377,6 +425,8 @@ class App:
             duration,
             dependent_on,
             is_complete,
+            dynamic,
+            creation_date,
         ) = rlinput(
             multiprompt={
                 "Title:": title,
@@ -387,12 +437,24 @@ class App:
                 "Duration:": duration,
                 "Dependent On:": dependent_on,
                 "Is Complete:": is_complete,
+                "Increase every x days:": dynamic,
+                "Creation Date:": creation_date,
             }
         )
+        dynamic = LinearDynamic.from_text(dynamic) if dynamic else None
         dependent_on = [
             self.find_task_by_any_id(el).identifier
             for el in ast.literal_eval(dependent_on)
         ]
+
+        creation_date = (
+            self.get_date_prompt(
+                "",
+                input_func=lambda *args, **kwargs: creation_date,
+            )
+            if creation_date
+            else None
+        )
 
         due_date = (
             self.get_date_prompt(
@@ -421,6 +483,8 @@ class App:
             task_to_edit.difficulty = difficulty
             task_to_edit.stress = stress
             task_to_edit.is_complete = is_complete
+            task_to_edit.stress_dynamic = dynamic
+            task_to_edit.creation_date = creation_date
             return task_to_edit
 
         created_task = Task(
@@ -431,6 +495,8 @@ class App:
             difficulty=difficulty,
             due_date=due_date,
             dependent_on=dependent_on,
+            stress_dynamic=dynamic,
+            creation_date=creation_date
         )
         return created_task
 
@@ -447,6 +513,7 @@ class App:
         dependent_on = self.get_input_with_validation_mapper(
             "Dependent on tasks: ", self.dependence_validator
         )
+        increase_every_x_days = self.get_numerical_prompt("Increase every x days: ")
         created_task = Task(
             title=task_title,
             description=task_description,
@@ -455,11 +522,14 @@ class App:
             difficulty=difficulty,
             due_date=date,
             dependent_on=dependent_on,
+            stress_dynamic=LinearDynamic(interval=increase_every_x_days)
+            if increase_every_x_days
+            else None,
         )
         return created_task
 
     def task_sorter(self, x: Task):
-        x_stress = x.stress
+        x_stress = x.get_rendered_stress()
         if x.is_due_soon():
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
