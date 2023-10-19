@@ -29,3 +29,7 @@ In the file:
 [taks_config]
 db_location:/put/a/directory/path/
 ```
+
+Currently there are only two dynamic modifiers to stress that can affect a task's rank:
+* If due soon, the task gets a bonus stress point.
+* If you specify a linear increase dynamic, the stress will increase by 1 every X days
