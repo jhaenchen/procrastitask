@@ -238,7 +238,7 @@ class Task:
             "stress_dynamic": self.stress_dynamic.to_text()
             if self.stress_dynamic
             else None,
-            "creation_date": self.creation_date,
+            "creation_date": self.creation_date.isoformat(),
         }
 
 
