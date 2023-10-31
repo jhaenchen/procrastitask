@@ -258,8 +258,6 @@ class App:
             config = dict(Config.items("taks_config"))
         except NoSectionError:
             print("Config error, check formatting")
-        except:
-            raise
         return config
 
     def get_db_location(self):
@@ -542,7 +540,7 @@ class App:
         dependent_on = self.get_input_with_validation_mapper(
             "Dependent on tasks: ", self.dependence_validator
         )
-        increase_every_x_days = self.get_numerical_prompt("Increase every x days: ")
+        increase_every_x_days = input("Increase every x days: ")
         created_task = Task(
             title=task_title,
             description=task_description,
@@ -551,7 +549,7 @@ class App:
             difficulty=difficulty,
             due_date=date,
             dependent_on=dependent_on,
-            stress_dynamic=LinearDynamic(interval=increase_every_x_days)
+            stress_dynamic=LinearDynamic.from_text(increase_every_x_days)
             if increase_every_x_days
             else None,
         )
