@@ -12,6 +12,7 @@ from typing import Callable, List, Optional, TypeVar
 import uuid
 import ast
 import icalendar
+from abc import ABC, abstractmethod
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
@@ -57,8 +58,55 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
         return to_return
 
 
+class BaseDynamic(ABC):
+    @abstractmethod
+    def from_text(text: str) -> "BaseDynamic":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def to_text(self: "BaseDynamic") -> str:
+        raise NotImplementedError()
+
+    @staticmethod
+    def find_dynamic(text: str) -> Optional["BaseDynamic"]:
+        for class_obj in BaseDynamic.__subclasses__():
+            try:
+                return class_obj.from_text(text)
+            except:
+                pass
+
+    @staticmethod
+    def get_implementers():
+        return BaseDynamic.__subclasses__()
+
+
 @dataclass
-class LinearDynamic:
+class LinearWithPeakDynamic(BaseDynamic):
+    """
+    In this dynamic, stress increases by 1 every X days, with a ceiling max.
+    """
+
+    interval: int
+    peak: int
+
+    def apply(self, creation_date: datetime, base_stress: int) -> float:
+        offset = (datetime.now() - creation_date).days / self.interval
+        return min(base_stress + offset, self.peak)
+
+    _name_prefix = "dynamic-linear-day-peaked-"
+
+    @staticmethod
+    def from_text(text: str) -> "LinearWithPeakDynamic":
+        interval, peak = text.split(LinearWithPeakDynamic._name_prefix)[1].split("-")
+
+        return LinearWithPeakDynamic(interval=int(interval), peak=int(peak))
+
+    def to_text(self) -> "LinearDynamic":
+        return f"{self._name_prefix}-{self.interval}-{self.peak}"
+
+
+@dataclass
+class LinearDynamic(BaseDynamic):
     """
     In this dynamic, stress increases by 1 every X days.
     """
@@ -66,8 +114,8 @@ class LinearDynamic:
     # How often should the stress increase by one
     interval: int
 
-    def apply(self, creation_date: datetime, base_stress: int) -> float:
-        offset = (datetime.now() - creation_date).days / self.interval
+    def apply(self, last_updated_date: datetime, base_stress: int) -> float:
+        offset = (datetime.now() - last_updated_date).days / self.interval
         return base_stress + offset
 
     @staticmethod
@@ -93,14 +141,14 @@ class Task:
     last_refreshed: datetime = field(default_factory=datetime.now)
     identifier: str = field(default_factory=lambda: str(uuid.uuid4()))
     dependent_on: List[int] = field(default_factory=lambda: [])
-    stress_dynamic: LinearDynamic = None
+    stress_dynamic: BaseDynamic = None
     creation_date: datetime = field(default_factory=datetime.now)
 
     def get_rendered_stress(self):
         base_stress = self.stress
         if not self.stress_dynamic:
             return base_stress
-        return self.stress_dynamic.apply(self.creation_date, self.stress)
+        return self.stress_dynamic.apply(self.last_refreshed, self.stress)
 
     def __key(self):
         return (self.title, self.description)
@@ -158,7 +206,7 @@ class Task:
         delta = datetime - datetime.now()
         if delta < timedelta(0):
             return f"-{delta.days} days"
-        return f"+{delta.days} days"
+        return f"{round(delta / timedelta(days=1), 2)} days"
 
     def pretty_print(self, all_tasks: List["Task"]):
         print(self.headline())
@@ -201,6 +249,7 @@ class Task:
         last_refreshed = incoming_dict.get("last_refreshed")
         stress_dynamic = incoming_dict.get("stress_dynamic")
         creation_date = incoming_dict.get("creation_date")
+
         return Task(
             title=incoming_dict["title"],
             description=incoming_dict["description"],
@@ -214,7 +263,7 @@ class Task:
             else None or Task._DEFAULT_REFRESHED,
             identifier=incoming_dict.get("identifier", str(uuid.uuid4())),
             dependent_on=incoming_dict.get("dependent_on", []),
-            stress_dynamic=LinearDynamic.from_text(stress_dynamic)
+            stress_dynamic=BaseDynamic.find_dynamic(stress_dynamic)
             if stress_dynamic
             else None,
             creation_date=datetime.fromisoformat(creation_date)
@@ -425,7 +474,7 @@ class App:
                 description = task_to_edit.description if task_to_edit else ""
                 due_date = task_to_edit.due_date if task_to_edit else ""
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
-                stress = task_to_edit.stress if task_to_edit else ""
+                stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
                 dependent_on = task_to_edit.dependent_on if task_to_edit else []
                 is_complete = task_to_edit.is_complete if task_to_edit else False
@@ -462,7 +511,7 @@ class App:
                         "Creation Date:": creation_date,
                     }
                 )
-                dynamic = LinearDynamic.from_text(dynamic) if dynamic else None
+                dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
                     self.find_task_by_any_id(el).identifier
                     for el in ast.literal_eval(dependent_on)
@@ -491,7 +540,9 @@ class App:
                     raise_exception=True,
                 )
                 stress = self.get_numerical_prompt(
-                    "Stress", input_func=lambda *args, **kwargs: stress, raise_exception=True
+                    "Stress",
+                    input_func=lambda *args, **kwargs: stress,
+                    raise_exception=True,
                 )
                 duration = self.get_numerical_prompt(
                     "Duration",
@@ -505,10 +556,17 @@ class App:
                     task_to_edit.dependent_on = dependent_on
                     task_to_edit.duration = duration
                     task_to_edit.difficulty = difficulty
+
+                    # Real quick... if they changed the stress,
+                    # update the last_refreshed date too
+                    if int(task_to_edit.get_rendered_stress()) != int(stress):
+                        task_to_edit.last_refreshed = datetime.now()
+
                     task_to_edit.stress = stress
                     task_to_edit.is_complete = is_complete
                     task_to_edit.stress_dynamic = dynamic
                     task_to_edit.creation_date = creation_date
+                    task_to_edit.due_date = due_date
                     return task_to_edit
 
                 created_task = Task(
@@ -549,7 +607,7 @@ class App:
             difficulty=difficulty,
             due_date=date,
             dependent_on=dependent_on,
-            stress_dynamic=LinearDynamic.from_text(increase_every_x_days)
+            stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
         )
