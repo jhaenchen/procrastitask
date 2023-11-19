@@ -389,8 +389,6 @@ class App:
             year = now.year
             day = int(parts[0])
             month = int(parts[1])
-            if now.day > day:
-                month = month + 1
             if now.month > month:
                 year = year + 1
             return datetime(day=day, month=month, year=year, hour=9)
