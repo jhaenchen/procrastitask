@@ -1,13 +1,29 @@
-The Procrastinator's Companion is a task management app that aims to mirror my own internal procrastination methodology. It orients around a value system, currently "stress" as a means of prioritizing tasks.
+The Procrastinator's Companion is a smart task manager.
 
-My methodology follows these principles:
-* High stress tasks should be completed before low stress tasks.
-* Not all tasks have true due dates, and self-imposed due dates don't count.
-* Due dates can often be missed. This should be assumed, not penalized.
-* That you should do something doesn't mean it's stressful, and we can often be stressed about things we aren't required to do. Stress != importance.
-* Tasks change in stressfulness over time. Something that's due soon is more stressful than it was before.
+It looks similar to other to-do list managers you may have used before, but it is crucially different in its mathematical ranking function for helping you choose what you should do next. This is a critical difference; tasks vary dramatically in their timeframe, their value to you over that time, their difficulty, and their attributive characteristics. In the modern existence, many of us accept the idea that the list will never go away, we will never eliminate every task. This list operates that way. It will help you keep track of short, long, and periodic tasks in your life. It will help you manage your life according to your priorities, e.g. I tend to complete things stressing me before I complete tasks that are self-investments in my long-term joy. My list ranking automatically reflects this preference. It is not complicated to use, it does not hide behind a fancy interface. It aims to be a representative of your own brain, your own ranking preferences. In the same way your list of things to do changes throughout the day and year, or tasks move up and down based on the passage of time or on dependencies, this app will do the same, allowing tasks to flow up and down based on mathematical functions you use to describe a task's value to you.
 
-Commands:
+Features:
+
+* Create, edit, complete, and delete tasks
+* Due dates
+* Dependent tasks
+* Task selection wizard
+* Calendar integration (mac)
+* Dynamic functional priorities
+* "Smart" ranking (or Multi-unit priority coordinate ranking system)
+* Dropbox backup support
+* Automatic priority refresh detection
+
+
+How to Run:
+
+1. Clone the git repository
+2. In the repository folder, run `pip install`
+3. Run the app `python procrastitask.py`
+
+You'll be presented with the command screen.
+
+Commands (enter the command and hit enter):
 
 ```
 n: Create a new task
@@ -18,7 +34,32 @@ x4: Complete task #4 in the list
 r: Refresh stress counts in the order of the least recently updated
 w: Help choose a task based on time availability and mental energy to spend
 cal4: Create a calendar event for task #4 in the list and open it in my Calendar app
+nn: Create a new task using vim to enter the details
 ```
+
+Let's walk through creating a task. I'll hit the key `n` and then hit the enter key.
+
+```
+Title: // This can be whatever you want for the title of your task
+Description: // Optional, add additional details here. Leave blank if you want.
+Due Date: // Always optional, but uses a special format: (`4` means the soonest 4th day of the month coming up, `4.12` means december 4th)
+Difficulty: // Required integer, how hard is this to actually execute and complete?
+Stress: // How worried are you about this task? How much anxiety is it giving you?
+Duration: // How long, in minutes, will it take to complete this task?
+Dependent On: // Optional, are any tasks required before this one? (You can pass a list index from the home view like `4` or get the full ID of the task by viewing its details)
+Increase every x days: // Optional integer, increase the stress value every X days
+```
+
+After entering these details, we'll see our task in the list. We should hit `s` and `enter` to save this new task.
+
+### Details on the ranking system
+The list is sorted first by stress, then by difficulty. However, there are various modifiers that can affect where a task ends up in the rank.
+
+* If a task is due "soon" (aka 2 days for every hour of effort), it will receive a bonus in priority of 1/3 of its original stress value
+* If you specify a linear increase dynamic via the "Increase every x days" field, the stress (priority) will increase periodically
+
+
+### Backup your database elsewhere:
 
 You may configure an alternate location for the storage of your data. This allows you to store the file to a place like Dropbox or iCloud and view it on your phone, since it's just JSON. It also helps you back up your tasks.
 
@@ -30,6 +71,7 @@ In the file:
 db_location:/put/a/directory/path/
 ```
 
-Currently there are only two dynamic modifiers to stress that can affect a task's rank:
-* If due soon, the task gets a bonus stress point.
-* If you specify a linear increase dynamic, the stress will increase by 1 every X days
+### Future features:
+
+* More dynamics: linear-with-cap, gaussian, gaussian-with-shelf
+* Multi coordinate support (joy, stress, love, etc, these should all be units in our list of life)
