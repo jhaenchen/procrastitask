@@ -619,10 +619,10 @@ class App:
             found.create_and_launch_ical_event()
         return
 
-
-os.system("clear")
-app = App()
-app.load()
-app.paged_task_list()
-while True:
-    app.display_home()
+if __name__ == "__main__":
+    os.system("clear")
+    app = App()
+    app.load()
+    app.paged_task_list()
+    while True:
+        app.display_home()
