@@ -33,6 +33,9 @@ class Task:
             return base_stress
         return self.stress_dynamic.apply(self.last_refreshed, self.stress)
 
+    def update_last_refreshed(self):
+        self.last_refreshed = datetime.now()
+    
     def __key(self):
         return (self.title, self.description)
 

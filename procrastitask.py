@@ -162,6 +162,19 @@ class App:
         if len(parts) == 3:
             return datetime(day=parts[0], month=parts[1], year=parts[2], hour=9)
 
+    def modify_cached_task_stress_by_offset(self, cached_idx: int, offset: int):
+        """
+        Change the stress of a task by an offset. This should apply to the rendered
+        task stress rather than the base in the case of dynamics.
+        """
+        found_task: Task = self.cached_listed_tasks[cached_idx]
+        existing_stress = found_task.get_rendered_stress()
+        new_stress = existing_stress + offset
+        found_task.stress = new_stress
+        found_task.update_last_refreshed()
+        print(f"Updating task stress for {found_task} from {existing_stress} -> {new_stress}")
+
+
     def get_numerical_prompt(
         self, prompt_text, also_accept=None, input_func=None, raise_exception=False
     ):
