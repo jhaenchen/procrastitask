@@ -26,6 +26,7 @@ class Task:
     dependent_on: List[int] = field(default_factory=lambda: [])
     stress_dynamic: BaseDynamic = None
     creation_date: datetime = field(default_factory=datetime.now)
+    list_name: str = "default"
 
     def get_rendered_stress(self):
         base_stress = self.stress
@@ -155,6 +156,7 @@ class Task:
             creation_date=datetime.fromisoformat(creation_date)
             if creation_date
             else datetime.now(),
+            list_name=incoming_dict.get("list_name", "default")
         )
 
     def to_dict(self):
@@ -173,4 +175,5 @@ class Task:
             if self.stress_dynamic
             else None,
             "creation_date": self.creation_date.isoformat(),
+            "list_name": self.list_name
         }

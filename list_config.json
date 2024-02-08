@@ -1,0 +1,13 @@
+{
+  "lists": [
+    {
+      "name": "default"
+    },
+    {
+      "name": "periodic_tasks"
+    },
+    {
+      "name": "life_goals"
+    }
+  ]
+}
