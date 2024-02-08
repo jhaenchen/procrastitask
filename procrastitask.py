@@ -284,6 +284,7 @@ class App:
                 creation_date = (
                     task_to_edit.creation_date if task_to_edit else datetime.now()
                 )
+                task_list_name = task_to_edit.list_name if task_to_edit.list_name else self.selected_task_list_name
                 (
                     title,
                     description,
@@ -295,6 +296,7 @@ class App:
                     is_complete,
                     dynamic,
                     creation_date,
+                    task_list_name
                 ) = rlinput(
                     multiprompt={
                         "Title:": title,
@@ -307,6 +309,7 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
+                        "Task List Name:": task_list_name
                     }
                 )
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
@@ -365,6 +368,7 @@ class App:
                     task_to_edit.stress_dynamic = dynamic
                     task_to_edit.creation_date = creation_date
                     task_to_edit.due_date = due_date
+                    task_to_edit.list_name = task_list_name
                     return task_to_edit
 
                 created_task = Task(
@@ -377,7 +381,7 @@ class App:
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
-                    list_name=self.selected_task_list_name
+                    list_name=task_list_name
                 )
                 return created_task
             except ValueError as e:
