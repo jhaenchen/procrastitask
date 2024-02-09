@@ -90,10 +90,11 @@ class App:
         return dir + "/" + self.TASKS_FILE_NAME
 
     def prompt_for_task_list_selection(self):
-        for list_idx, list_name in enumerate(self.task_lists):
+        task_lists_for_prompt = ["all"] + self.task_lists
+        for list_idx, list_name in enumerate(task_lists_for_prompt):
             print(f"[{list_idx}] {list_name}")
-        chosen_list_idx = self.get_numerical_prompt(prompt_text="Select your task list.")
-        self.selected_task_list_name = self.task_lists[chosen_list_idx]
+        chosen_list_idx = self.get_numerical_prompt(prompt_text="Select your task list: ")
+        self.selected_task_list_name = task_lists_for_prompt[chosen_list_idx]
 
     def load(self):
         self.load_list_config()
@@ -103,8 +104,8 @@ class App:
             with open(self.get_db_location(), "r") as db:
                 json_tasks = json.loads(db.read())
                 actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
-                self.all_tasks = [t for t in actual_all_tasks if t.list_name == self.selected_task_list_name]
-                self.filtered_tasks_to_resave = [t for t in actual_all_tasks if t.list_name != self.selected_task_list_name]
+                self.all_tasks = [t for t in actual_all_tasks if (t.list_name == self.selected_task_list_name) or self.selected_task_list_name == "all"]
+                self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name != self.selected_task_list_name) and self.selected_task_list_name != "all"]
         except Exception as e:
             print(f"Error: {e}")
             self.all_tasks = []
@@ -284,7 +285,7 @@ class App:
                 creation_date = (
                     task_to_edit.creation_date if task_to_edit else datetime.now()
                 )
-                task_list_name = task_to_edit.list_name if task_to_edit.list_name else self.selected_task_list_name
+                task_list_name = task_to_edit.list_name if task_to_edit else self.selected_task_list_name
                 (
                     title,
                     description,
