@@ -90,11 +90,13 @@ class App:
         return dir + "/" + self.TASKS_FILE_NAME
 
     def prompt_for_task_list_selection(self):
+        self.reset_screen()
         task_lists_for_prompt = ["all"] + self.task_lists
         for list_idx, list_name in enumerate(task_lists_for_prompt):
             print(f"[{list_idx}] {list_name}")
         chosen_list_idx = self.get_numerical_prompt(prompt_text="Select your task list: ")
         self.selected_task_list_name = task_lists_for_prompt[chosen_list_idx]
+        self.reset_screen()
 
     def load(self):
         self.load_list_config()
@@ -414,7 +416,7 @@ class App:
             stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
-            list_name=self.selected_task_list_name
+            list_name=self.selected_task_list_name if self.selected_task_list_name != "all" else "default"
         )
         return created_task
 
