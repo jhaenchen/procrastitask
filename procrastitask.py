@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from typing import Callable, List, Optional, TypeVar
 import ast
 
+import croniter
+
 from dynamics.base_dynamic import BaseDynamic
 from task import Task
 
@@ -264,6 +266,7 @@ class App:
                 creation_date = (
                     task_to_edit.creation_date if task_to_edit else datetime.now()
                 )
+                periodicity = task_to_edit.periodicity if task_to_edit else ""
                 (
                     title,
                     description,
@@ -275,6 +278,7 @@ class App:
                     is_complete,
                     dynamic,
                     creation_date,
+                    periodicity
                 ) = rlinput(
                     multiprompt={
                         "Title:": title,
@@ -287,8 +291,12 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
+                        "Periodicity": periodicity
                     }
                 )
+
+                periodicity = self.cron_validator(periodicity)
+
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
                     self.find_task_by_any_id(el).identifier
@@ -345,6 +353,7 @@ class App:
                     task_to_edit.stress_dynamic = dynamic
                     task_to_edit.creation_date = creation_date
                     task_to_edit.due_date = due_date
+                    task_to_edit.periodicity = periodicity
                     return task_to_edit
 
                 created_task = Task(
@@ -357,6 +366,7 @@ class App:
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
+                    periodicity=periodicity
                 )
                 return created_task
             except ValueError as e:
@@ -365,6 +375,20 @@ class App:
 
     def verbose_create_new_task(self):
         return self.edit_or_create_task()
+    
+    @property
+    def cron_validator(self):
+        def validator(val):
+            if not val:
+                return None
+            try:
+                cron = croniter.croniter(val, datetime.now())
+                cron.get_next(datetime)
+                return val
+            except Exception as e:
+                print(e)
+                raise ValueError("Invalid cron")
+        return validator
 
     def create_new_task(self):
         task_title = input("Enter your task: ")
@@ -377,6 +401,10 @@ class App:
             "Dependent on tasks: ", self.dependence_validator
         )
         increase_every_x_days = input("Increase every x days: ")
+        periodicity = self.get_input_with_validation_mapper(
+            "Periodic cron: ", self.cron_validator
+        )
+
         created_task = Task(
             title=task_title,
             description=task_description,
@@ -388,6 +416,7 @@ class App:
             stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
+            periodicity=periodicity
         )
         return created_task
 
