@@ -95,13 +95,13 @@ class App:
         for list_idx, list_name in enumerate(task_lists_for_prompt):
             print(f"[{list_idx}] {list_name}")
         chosen_list_idx = self.get_numerical_prompt(prompt_text="Select your task list: ")
-        self.selected_task_list_name = task_lists_for_prompt[chosen_list_idx]
         self.reset_screen()
+        return task_lists_for_prompt[chosen_list_idx]
 
-    def load(self):
+    def load(self, default_list=None):
         self.load_list_config()
         if self.task_lists:
-            self.prompt_for_task_list_selection()
+            self.selected_task_list_name = self.prompt_for_task_list_selection() if not default_list else default_list
         try:
             with open(self.get_db_location(), "r") as db:
                 json_tasks = json.loads(db.read())
