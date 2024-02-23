@@ -35,11 +35,15 @@ class Task:
 
     @property
     def is_complete(self):
+        log.debug(f"Evaluating is_complete for task named: {self.title}")
         if not self._is_complete:
+            log.debug("Task is incomplete, returning incomplete.")
             return self._is_complete
         if self.cool_down:
+            log.debug("Cool down is configured. Let's evaluate.")
             time_since_last_completion = datetime.now() - self.last_refreshed
             expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
+            log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
             if time_since_last_completion > (expected_interval * .9):
                 return False
             return True
