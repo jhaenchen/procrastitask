@@ -250,7 +250,7 @@ class App:
 
         return to_return_validator
 
-    def edit_or_create_task(self, task_to_edit: Optional[Task] = None) -> Task:
+    def edit_or_create_task(self, task_to_edit: Optional[Task] = None, dependent_on=None) -> Task:
         while True:
             try:
                 title = task_to_edit.title if task_to_edit else ""
@@ -259,7 +259,7 @@ class App:
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
                 stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
-                dependent_on = task_to_edit.dependent_on if task_to_edit else []
+                dependent_on = dependent_on if dependent_on else task_to_edit.dependent_on if task_to_edit else []
                 is_complete = task_to_edit.is_complete if task_to_edit else False
                 dynamic = (
                     task_to_edit.stress_dynamic.to_text()
@@ -635,6 +635,14 @@ class App:
         if command.startswith("cal"):
             found = self.find_task_by_any_id(command[3:])
             found.create_and_launch_ical_event()
+        if command.startswith("n") and command != "n":
+            found = self.find_task_by_any_id(command[1:])
+            self.all_tasks.append(self.edit_or_create_task(dependent_on=[found.identifier]))
+        if command.startswith("p"):
+            found = self.find_task_by_any_id(command[1:])
+            new_task = self.edit_or_create_task()
+            self.all_tasks.append(new_task)
+            found.dependent_on = [*found.dependent_on, new_task.identifier]
         return
 
 if __name__ == "__main__":
