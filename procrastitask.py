@@ -9,6 +9,7 @@ from time import sleep
 from datetime import datetime, timedelta
 from typing import Callable, List, Optional, TypeVar
 import ast
+import logging
 
 import croniter
 
@@ -16,6 +17,10 @@ from dynamics.base_dynamic import BaseDynamic
 from task import Task
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
+
+log = logging.getLogger()
+log.setLevel("DEBUG")
+logging.basicConfig(filename="log.txt")
 
 
 def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List[str]:

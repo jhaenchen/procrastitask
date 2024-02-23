@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass, field
 import math
 import os
@@ -10,6 +11,9 @@ import icalendar
 import croniter
 
 from dynamics.base_dynamic import BaseDynamic
+
+log = logging.getLogger()
+
 
 @dataclass
 class Task:
