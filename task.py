@@ -29,12 +29,13 @@ class Task:
     creation_date: datetime = field(default_factory=datetime.now)
     list_name: str = "default"
     periodicity: str = None
+    cool_down: str = None
 
     @property
     def is_complete(self):
-        if not self.periodicity or not self._is_complete:
+        if not self._is_complete:
             return self._is_complete
-        else:
+        if self.periodicity:
             cron = croniter.croniter(self.periodicity, datetime.now())
             next_time_to_complete = cron.get_next(datetime)
             previous_time_to_complete = cron.get_prev(datetime)
@@ -44,10 +45,30 @@ class Task:
             if datetime.now() > reset_at:
                 return False
             return True
+        if self.cool_down:
+            time_since_last_completion = datetime.now() - self.last_refreshed
+            expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
+            if time_since_last_completion > (expected_interval * .9):
+                return False
+            return True
+        return self._is_complete
 
     @is_complete.setter
     def is_complete(self, val):
         self._is_complete = val
+        self.update_last_refreshed()
+
+    @staticmethod
+    def convert_cool_down_str_to_delta(cool_down: str) -> timedelta:
+        if "min" in cool_down:
+            return timedelta(minutes=int(cool_down.split("min")[0]))
+        if "d" in cool_down:
+            return timedelta(days=int(cool_down.split("d")[0]))
+        if "w" in cool_down:
+            return timedelta(weeks=int(cool_down.split("w")[0]))
+        if "m" in cool_down:
+            return timedelta(weeks=int(cool_down.split("m")[0]) * 4)
+        raise ValueError(f"The set cool down str is not parseable: {cool_down}")
 
     def get_rendered_stress(self):
         base_stress = self.stress
@@ -179,7 +200,8 @@ class Task:
             if creation_date
             else datetime.now(),
             list_name=incoming_dict.get("list_name", "default"),
-            periodicity=incoming_dict.get("periodicity")
+            periodicity=incoming_dict.get("periodicity"),
+            cool_down=incoming_dict.get("cool_down")
         )
 
     def to_dict(self):
@@ -199,5 +221,6 @@ class Task:
             else None,
             "creation_date": self.creation_date.isoformat(),
             "list_name": self.list_name,
-            "periodicity": self.periodicity
+            "periodicity": self.periodicity,
+            "cool_down": self.cool_down
         }
