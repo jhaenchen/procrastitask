@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from typing import Callable, List, Optional, TypeVar
 import ast
 
-import croniter
-
 from dynamics.base_dynamic import BaseDynamic
 from task import Task
 
@@ -266,7 +264,6 @@ class App:
                 creation_date = (
                     task_to_edit.creation_date if task_to_edit else datetime.now()
                 )
-                periodicity = task_to_edit.periodicity if task_to_edit else ""
                 cool_down = task_to_edit.cool_down if task_to_edit else ""
                 (
                     title,
@@ -279,7 +276,6 @@ class App:
                     is_complete,
                     dynamic,
                     creation_date,
-                    periodicity,
                     cool_down
                 ) = rlinput(
                     multiprompt={
@@ -293,14 +289,11 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
-                        "Periodicity": periodicity,
                         "Cool down": cool_down
                     }
                 )
 
                 cool_down = self.interval_validator(cool_down)
-
-                periodicity = self.cron_validator(periodicity)
 
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
@@ -358,7 +351,6 @@ class App:
                     task_to_edit.stress_dynamic = dynamic
                     task_to_edit.creation_date = creation_date
                     task_to_edit.due_date = due_date
-                    task_to_edit.periodicity = periodicity
                     task_to_edit.cool_down = cool_down
                     return task_to_edit
 
@@ -372,7 +364,6 @@ class App:
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
-                    periodicity=periodicity,
                     cool_down=cool_down
                 )
                 return created_task
@@ -396,20 +387,6 @@ class App:
                 raise ValueError("Invalid interval")
         return validator
 
-    @property
-    def cron_validator(self):
-        def validator(val):
-            if not val:
-                return None
-            try:
-                cron = croniter.croniter(val, datetime.now())
-                cron.get_next(datetime)
-                return val
-            except Exception as e:
-                print(e)
-                raise ValueError("Invalid cron")
-        return validator
-
     def create_new_task(self):
         task_title = input("Enter your task: ")
         task_description = input("Enter description: ")
@@ -421,9 +398,6 @@ class App:
             "Dependent on tasks: ", self.dependence_validator
         )
         increase_every_x_days = input("Increase every x days: ")
-        periodicity = self.get_input_with_validation_mapper(
-            "Periodic cron: ", self.cron_validator
-        )
         cool_down = self.get_input_with_validation_mapper(
             "Cool down: ", self.interval_validator
         )
@@ -439,7 +413,6 @@ class App:
             stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
-            periodicity=periodicity,
             cool_down=cool_down
         )
         return created_task
