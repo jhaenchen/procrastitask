@@ -687,7 +687,7 @@ class App:
         if command.startswith("cal"):
             found = self.find_task_by_any_id(command[3:])
             found.create_and_launch_ical_event()
-        if command.startswith("n") and command != "n":
+        if command.startswith("n") and command not in ["n", "nn"]:
             found = self.find_task_by_any_id(command[1:])
             self.all_tasks.append(self.edit_or_create_task(dependent_on=[found.identifier]))
         if command.startswith("p"):
