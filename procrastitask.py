@@ -11,8 +11,6 @@ from typing import Callable, List, Optional, TypeVar
 import ast
 import logging
 
-import croniter
-
 from dynamics.base_dynamic import BaseDynamic
 from task import Task
 
@@ -252,7 +250,7 @@ class App:
 
         return to_return_validator
 
-    def edit_or_create_task(self, task_to_edit: Optional[Task] = None) -> Task:
+    def edit_or_create_task(self, task_to_edit: Optional[Task] = None, dependent_on=None) -> Task:
         while True:
             try:
                 title = task_to_edit.title if task_to_edit else ""
@@ -261,7 +259,7 @@ class App:
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
                 stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
-                dependent_on = task_to_edit.dependent_on if task_to_edit else []
+                dependent_on = dependent_on if dependent_on else task_to_edit.dependent_on if task_to_edit else []
                 is_complete = task_to_edit.is_complete if task_to_edit else False
                 dynamic = (
                     task_to_edit.stress_dynamic.to_text()
@@ -271,7 +269,6 @@ class App:
                 creation_date = (
                     task_to_edit.creation_date if task_to_edit else datetime.now()
                 )
-                periodicity = task_to_edit.periodicity if task_to_edit else ""
                 (
                     title,
                     description,
@@ -283,7 +280,6 @@ class App:
                     is_complete,
                     dynamic,
                     creation_date,
-                    periodicity
                 ) = rlinput(
                     multiprompt={
                         "Title:": title,
@@ -296,12 +292,8 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
-                        "Periodicity": periodicity
                     }
                 )
-
-                periodicity = self.cron_validator(periodicity)
-
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
                     self.find_task_by_any_id(el).identifier
@@ -358,7 +350,6 @@ class App:
                     task_to_edit.stress_dynamic = dynamic
                     task_to_edit.creation_date = creation_date
                     task_to_edit.due_date = due_date
-                    task_to_edit.periodicity = periodicity
                     return task_to_edit
 
                 created_task = Task(
@@ -371,7 +362,6 @@ class App:
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
-                    periodicity=periodicity
                 )
                 return created_task
             except ValueError as e:
@@ -380,20 +370,6 @@ class App:
 
     def verbose_create_new_task(self):
         return self.edit_or_create_task()
-    
-    @property
-    def cron_validator(self):
-        def validator(val):
-            if not val:
-                return None
-            try:
-                cron = croniter.croniter(val, datetime.now())
-                cron.get_next(datetime)
-                return val
-            except Exception as e:
-                print(e)
-                raise ValueError("Invalid cron")
-        return validator
 
     def create_new_task(self):
         task_title = input("Enter your task: ")
@@ -406,10 +382,6 @@ class App:
             "Dependent on tasks: ", self.dependence_validator
         )
         increase_every_x_days = input("Increase every x days: ")
-        periodicity = self.get_input_with_validation_mapper(
-            "Periodic cron: ", self.cron_validator
-        )
-
         created_task = Task(
             title=task_title,
             description=task_description,
@@ -421,7 +393,6 @@ class App:
             stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
-            periodicity=periodicity
         )
         return created_task
 
@@ -664,6 +635,14 @@ class App:
         if command.startswith("cal"):
             found = self.find_task_by_any_id(command[3:])
             found.create_and_launch_ical_event()
+        if command.startswith("n") and command != "n":
+            found = self.find_task_by_any_id(command[1:])
+            self.all_tasks.append(self.edit_or_create_task(dependent_on=[found.identifier]))
+        if command.startswith("p"):
+            found = self.find_task_by_any_id(command[1:])
+            new_task = self.edit_or_create_task()
+            self.all_tasks.append(new_task)
+            found.dependent_on = [*found.dependent_on, new_task.identifier]
         return
 
 if __name__ == "__main__":
