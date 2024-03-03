@@ -50,6 +50,8 @@ Stress: // How worried are you about this task? How much anxiety is it giving yo
 Duration: // How long, in minutes, will it take to complete this task?
 Dependent On: // Optional, are any tasks required before this one? (You can pass a list index from the home view like `4` or get the full ID of the task by viewing its details)
 Increase every x days: // Optional integer, increase the stress value every X days
+Cool down: // Optional string, after completion, bring this task back after X, (Xmin, Xd, Xw, Xm) 
+Periodicity: // Optional, task comes back at a time, cron syntax
 ```
 
 After entering these details, we'll see our task in the list. We should hit `s` and `enter` to save this new task.

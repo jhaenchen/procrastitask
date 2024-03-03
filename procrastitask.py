@@ -284,7 +284,7 @@ class App:
                     is_complete,
                     dynamic,
                     creation_date,
-                    cool_down
+                    cool_down,
                     periodicity
                 ) = rlinput(
                     multiprompt={
@@ -298,8 +298,8 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
-                        "Cool down": cool_down,
-                        "Periodicity": periodicity
+                        "Cool down:": cool_down,
+                        "Periodicity:": periodicity
                     }
                 )
 
@@ -377,7 +377,7 @@ class App:
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
-                    cool_down=cool_down
+                    cool_down=cool_down,
                     periodicity=periodicity
                 )
                 return created_task
@@ -427,7 +427,7 @@ class App:
         )
         increase_every_x_days = input("Increase every x days: ")
         cool_down = self.get_input_with_validation_mapper(
-            "Cool down: ", self.interval_validator
+            "Cool down: ", self.interval_validator)
         periodicity = self.get_input_with_validation_mapper(
             "Periodic cron: ", self.cron_validator
         )
@@ -443,8 +443,8 @@ class App:
             stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
-            cool_down=cool_down
-            periodicity=periodicity
+            cool_down=cool_down,
+            periodicity=periodicity,
         )
         return created_task
 
