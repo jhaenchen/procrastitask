@@ -272,6 +272,7 @@ class App:
                     task_to_edit.creation_date if task_to_edit else datetime.now()
                 )
                 cool_down = task_to_edit.cool_down if task_to_edit else ""
+                periodicity = task_to_edit.periodicity if task_to_edit else ""
                 (
                     title,
                     description,
@@ -284,6 +285,7 @@ class App:
                     dynamic,
                     creation_date,
                     cool_down
+                    periodicity
                 ) = rlinput(
                     multiprompt={
                         "Title:": title,
@@ -296,11 +298,14 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
-                        "Cool down": cool_down
+                        "Cool down": cool_down,
+                        "Periodicity": periodicity
                     }
                 )
 
                 cool_down = self.interval_validator(cool_down)
+
+                periodicity = self.cron_validator(periodicity)
 
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
@@ -359,6 +364,7 @@ class App:
                     task_to_edit.creation_date = creation_date
                     task_to_edit.due_date = due_date
                     task_to_edit.cool_down = cool_down
+                    task_to_edit.periodicity = periodicity
                     return task_to_edit
 
                 created_task = Task(
@@ -372,6 +378,7 @@ class App:
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
                     cool_down=cool_down
+                    periodicity=periodicity
                 )
                 return created_task
             except ValueError as e:
@@ -380,6 +387,20 @@ class App:
 
     def verbose_create_new_task(self):
         return self.edit_or_create_task()
+    
+    @property
+    def cron_validator(self):
+        def validator(val):
+            if not val:
+                return None
+            try:
+                cron = croniter.croniter(val, datetime.now())
+                cron.get_next(datetime)
+                return val
+            except Exception as e:
+                print(e)
+                raise ValueError("Invalid cron")
+        return validator
 
     @property
     def interval_validator(self):
@@ -407,6 +428,8 @@ class App:
         increase_every_x_days = input("Increase every x days: ")
         cool_down = self.get_input_with_validation_mapper(
             "Cool down: ", self.interval_validator
+        periodicity = self.get_input_with_validation_mapper(
+            "Periodic cron: ", self.cron_validator
         )
 
         created_task = Task(
@@ -421,6 +444,7 @@ class App:
             if increase_every_x_days
             else None,
             cool_down=cool_down
+            periodicity=periodicity
         )
         return created_task
 

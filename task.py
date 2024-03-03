@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import List
 import uuid
 import icalendar
+import croniter
 
 from dynamics.base_dynamic import BaseDynamic
 
@@ -32,6 +33,7 @@ class Task:
     creation_date: datetime = field(default_factory=datetime.now)
     list_name: str = "default"
     cool_down: str = None
+    periodicity: str = None
 
     @property
     def is_complete(self):
@@ -45,6 +47,16 @@ class Task:
             expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
             log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
             if time_since_last_completion > (expected_interval * .9):
+                return False
+            return True
+        if self.periodicity:
+            cron = croniter.croniter(self.periodicity, datetime.now())
+            next_time_to_complete = cron.get_next(datetime)
+            previous_time_to_complete = cron.get_prev(datetime)
+            interval = next_time_to_complete - previous_time_to_complete
+            buffer = interval * .10
+            reset_at = next_time_to_complete - buffer
+            if datetime.now() > reset_at:
                 return False
             return True
         return self._is_complete
@@ -158,7 +170,7 @@ class Task:
         saw_incomplete = False
         for task_id in self.dependent_on:
             found = [t for t in all_tasks if t.identifier == task_id][0]
-            if not found.is_complete:
+            if not found._is_complete:
                 saw_incomplete = True
         return not saw_incomplete
 
@@ -166,7 +178,8 @@ class Task:
         return f"{self.title} ({self.duration}min, stress: {int(self.get_rendered_stress())}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
 
     def complete(self):
-        self.is_complete = True
+        self.update_last_refreshed()
+        self._is_complete = True
 
     @staticmethod
     def from_dict(incoming_dict):
@@ -182,7 +195,7 @@ class Task:
             stress=incoming_dict["stress"],
             difficulty=incoming_dict["difficulty"],
             due_date=datetime.fromisoformat(due_date) if due_date else None,
-            is_complete=incoming_dict["is_complete"],
+            _is_complete=incoming_dict["is_complete"],
             last_refreshed=datetime.fromisoformat(last_refreshed)
             if last_refreshed
             else None or Task._DEFAULT_REFRESHED,
@@ -195,7 +208,8 @@ class Task:
             if creation_date
             else datetime.now(),
             list_name=incoming_dict.get("list_name", "default"),
-            cool_down=incoming_dict.get("cool_down")
+            cool_down=incoming_dict.get("cool_down"),
+            periodicity=incoming_dict.get("periodicity")
         )
 
     def to_dict(self):
@@ -205,7 +219,7 @@ class Task:
             "duration": self.duration,
             "stress": self.stress,
             "difficulty": self.difficulty,
-            "is_complete": self.is_complete,
+            "is_complete": self._is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
             "last_refreshed": self.last_refreshed.isoformat(),
             "identifier": self.identifier,
@@ -215,5 +229,6 @@ class Task:
             else None,
             "creation_date": self.creation_date.isoformat(),
             "list_name": self.list_name,
-            "cool_down": self.cool_down
+            "cool_down": self.cool_down,
+            "periodicity": self.periodicity
         }
