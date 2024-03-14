@@ -32,15 +32,27 @@ class Task:
 
     @property
     def is_complete(self):
-        if not self.periodicity or not self._is_complete:
+        # If there's no periodicity, just return whatever it is
+        if not self.periodicity:
+            return self._is_complete
+        # If it's marked as incomplete, the period doesn't matter
+        # it needs to be done either way.
+        if not self._is_complete:
             return self._is_complete
         else:
+            # If we're here, we have a periodic that is complete
+            # We need to decide if it should come back
             cron = croniter.croniter(self.periodicity, datetime.now())
             next_time_to_complete = cron.get_next(datetime)
             previous_time_to_complete = cron.get_prev(datetime)
             interval = next_time_to_complete - previous_time_to_complete
             buffer = interval * .10
             reset_at = next_time_to_complete - buffer
+
+            if self.last_refreshed < previous_time_to_complete:
+                # We missed a chance, bump it to incomplete
+                return False
+
             if datetime.now() > reset_at:
                 return False
             return True
@@ -48,6 +60,8 @@ class Task:
     @is_complete.setter
     def is_complete(self, val):
         self._is_complete = val
+        if val:
+            self.complete()
 
     def get_rendered_stress(self):
         base_stress = self.stress

@@ -302,7 +302,7 @@ class App:
                     is_complete,
                     dynamic,
                     creation_date,
-                    periodicity
+                    periodicity,
                     task_list_name
                 ) = rlinput(
                     multiprompt={
@@ -316,7 +316,7 @@ class App:
                         "Is Complete:": is_complete,
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
-                        "Periodicity": periodicity
+                        "Periodicity": periodicity,
                         "Task List Name:": task_list_name
                     }
                 )
@@ -393,7 +393,7 @@ class App:
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
-                    periodicity=periodicity
+                    periodicity=periodicity,
                     list_name=task_list_name
                 )
                 return created_task
@@ -444,7 +444,7 @@ class App:
             stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
             if increase_every_x_days
             else None,
-            periodicity=periodicity
+            periodicity=periodicity,
             list_name=self.selected_task_list_name if self.selected_task_list_name != "all" else "default"
         )
         return created_task
