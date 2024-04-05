@@ -26,6 +26,8 @@ You'll be presented with the command screen.
 Commands (enter the command and hit enter):
 
 ```
+save: save changes
+load: reload tasks
 n: Create a new task
 e4 OR e1234-5678-9012: Edit the full details of task #4 in the list or the task with the ID 1234-5678-9012
 4: View the details of task #4 in the list
@@ -77,5 +79,5 @@ db_location:/put/a/directory/path/
 
 ### Future features:
 
-* More dynamics: linear-with-cap, gaussian, gaussian-with-shelf
+* More dynamics: linear-with-cap, gaussian, gaussian-with-shelf, peak-at-due-time
 * Multi coordinate support (joy, stress, love, etc, these should all be units in our list of life)
