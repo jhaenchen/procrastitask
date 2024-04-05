@@ -67,7 +67,7 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
 class App:
     def __init__(self):
         self.filtered_tasks_to_resave = []
-        self.selected_task_list_name = "default"
+        self.selected_task_list_name = ["default"]
         self.task_lists = []
         self.all_tasks = []
         self.cached_listed_tasks = {}
@@ -101,9 +101,9 @@ class App:
         task_lists_for_prompt = ["all"] + self.task_lists
         for list_idx, list_name in enumerate(task_lists_for_prompt):
             print(f"[{list_idx}] {list_name}")
-        chosen_list_idx = self.get_numerical_prompt(prompt_text="Select your task list: ")
+        chosen_lists_idx = self.get_input_with_validation_mapper(prompt="Select your task list: ", validator_mapper=lambda s: [int(val) for val in s.split(",")])
         self.reset_screen()
-        return task_lists_for_prompt[chosen_list_idx]
+        return [task_lists_for_prompt[chosen_list_idx] for chosen_list_idx in chosen_lists_idx]
 
     def get_raw_db_file(self):
         with open(self.get_db_location(), "r") as db:
@@ -112,12 +112,15 @@ class App:
     def load(self, default_list=None):
         self.load_list_config()
         if self.task_lists:
-            self.selected_task_list_name = self.prompt_for_task_list_selection() if not default_list else default_list
+            if default_list:
+                self.selected_task_list_name = [default_list]
+            else:
+                self.selected_task_list_name = self.prompt_for_task_list_selection()
         try:
             json_tasks = json.loads(self.get_raw_db_file())
             actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
-            self.all_tasks = [t for t in actual_all_tasks if (t.list_name == self.selected_task_list_name) or self.selected_task_list_name == "all"]
-            self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name != self.selected_task_list_name) and self.selected_task_list_name != "all"]
+            self.all_tasks = [t for t in actual_all_tasks if (t.list_name in self.selected_task_list_name) or "all" in self.selected_task_list_name]
+            self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name not in self.selected_task_list_name) and "all" not in self.selected_task_list_name]
         except Exception as e:
             print(f"Error: {e}")
             self.all_tasks = []
@@ -299,7 +302,7 @@ class App:
                 )
                 cool_down = task_to_edit.cool_down if task_to_edit else ""
                 periodicity = task_to_edit.periodicity if task_to_edit else ""
-                task_list_name = task_to_edit.list_name if task_to_edit else self.selected_task_list_name
+                task_list_name = task_to_edit.list_name if task_to_edit else self.selected_task_list_name[0] if (len(self.selected_task_list_name) == 1 and "all" not in self.selected_task_list_name) else "default"
                 (
                     title,
                     description,
@@ -476,7 +479,7 @@ class App:
             else None,
             cool_down=cool_down,
             periodicity=periodicity,
-            list_name=self.selected_task_list_name if self.selected_task_list_name != "all" else "default"
+            list_name=self.selected_task_list_name[0] if ("all" not in self.selected_task_list_name and len(self.selected_task_list_name) == 1) else "default"
         )
         return created_task
 
