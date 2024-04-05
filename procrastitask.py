@@ -66,6 +66,9 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List
 
 class App:
     def __init__(self):
+        self.filtered_tasks_to_resave = []
+        self.selected_task_list_name = "default"
+        self.task_lists = []
         self.all_tasks = []
         self.cached_listed_tasks = {}
         self.config = self.config_loader()
@@ -83,15 +86,35 @@ class App:
             print("Config error, check formatting")
         return config
 
+    def load_list_config(self):
+        dir = self.config.get("db_location", self.get_current_dir())
+        with open(dir + "/list_config.json", "r") as lists:
+            task_lists = json.loads(lists.read())["lists"]
+            self.task_lists = [el['name'] for el in task_lists]
+
     def get_db_location(self):
         dir = self.config.get("db_location", self.get_current_dir())
         return dir + "/" + self.TASKS_FILE_NAME
 
-    def load(self):
+    def prompt_for_task_list_selection(self):
+        self.reset_screen()
+        task_lists_for_prompt = ["all"] + self.task_lists
+        for list_idx, list_name in enumerate(task_lists_for_prompt):
+            print(f"[{list_idx}] {list_name}")
+        chosen_list_idx = self.get_numerical_prompt(prompt_text="Select your task list: ")
+        self.reset_screen()
+        return task_lists_for_prompt[chosen_list_idx]
+
+    def load(self, default_list=None):
+        self.load_list_config()
+        if self.task_lists:
+            self.selected_task_list_name = self.prompt_for_task_list_selection() if not default_list else default_list
         try:
             with open(self.get_db_location(), "r") as db:
                 json_tasks = json.loads(db.read())
-                self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
+                actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
+                self.all_tasks = [t for t in actual_all_tasks if (t.list_name == self.selected_task_list_name) or self.selected_task_list_name == "all"]
+                self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name != self.selected_task_list_name) and self.selected_task_list_name != "all"]
         except Exception as e:
             print(f"Error: {e}")
             self.all_tasks = []
@@ -105,7 +128,7 @@ class App:
                     def sorter(t: Task):
                         return (t.is_complete, t.title)
 
-                    sorted_tasks = sorted(self.all_tasks, key=sorter)
+                    sorted_tasks = sorted(self.all_tasks + self.filtered_tasks_to_resave, key=sorter)
                     task_json_dicts = [task.to_dict() for task in sorted_tasks]
                     json_str = json.dumps(task_json_dicts)
                     db.write(json_str)
@@ -273,6 +296,7 @@ class App:
                 )
                 cool_down = task_to_edit.cool_down if task_to_edit else ""
                 periodicity = task_to_edit.periodicity if task_to_edit else ""
+                task_list_name = task_to_edit.list_name if task_to_edit else self.selected_task_list_name
                 (
                     title,
                     description,
@@ -285,7 +309,8 @@ class App:
                     dynamic,
                     creation_date,
                     cool_down,
-                    periodicity
+                    periodicity,
+                    task_list_name
                 ) = rlinput(
                     multiprompt={
                         "Title:": title,
@@ -299,7 +324,8 @@ class App:
                         "Increase every x days:": dynamic,
                         "Creation Date:": creation_date,
                         "Cool down:": cool_down,
-                        "Periodicity:": periodicity
+                        "Periodicity": periodicity,
+                        "Task List Name:": task_list_name
                     }
                 )
 
@@ -365,6 +391,7 @@ class App:
                     task_to_edit.due_date = due_date
                     task_to_edit.cool_down = cool_down
                     task_to_edit.periodicity = periodicity
+                    task_to_edit.list_name = task_list_name
                     return task_to_edit
 
                 created_task = Task(
@@ -378,7 +405,8 @@ class App:
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
                     cool_down=cool_down,
-                    periodicity=periodicity
+                    periodicity=periodicity,
+                    list_name=task_list_name
                 )
                 return created_task
             except ValueError as e:
@@ -445,6 +473,7 @@ class App:
             else None,
             cool_down=cool_down,
             periodicity=periodicity,
+            list_name=self.selected_task_list_name if self.selected_task_list_name != "all" else "default"
         )
         return created_task
 
@@ -454,6 +483,12 @@ class App:
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
 
+    def get_list_name_text(self):
+        return f"(list: {self.selected_task_list_name})"
+
+    def print_list_name(self):
+        print(self.get_list_name_text())
+
     def list_all_tasks(
         self,
         task_list_override=None,
@@ -461,6 +496,8 @@ class App:
         also_print=True,
         smart_filter=True,
     ):
+        if also_print:
+            self.print_list_name()
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
@@ -600,6 +637,7 @@ class App:
 
     def paged_task_list(self):
         self.reset_screen()
+        self.print_list_name()
         rows = int(
             subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
                 "utf-8"
@@ -613,6 +651,7 @@ class App:
         pos = [0, 0]
         rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
         rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
+        rows -= math.ceil(len(self.get_list_name_text()) / columns) + 1
         would_print_collection = self.list_all_tasks(also_print=False)
         if self.should_do_refresh():
             would_print_collection = [

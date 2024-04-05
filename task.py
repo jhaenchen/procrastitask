@@ -56,6 +56,11 @@ class Task:
             interval = next_time_to_complete - previous_time_to_complete
             buffer = interval * .10
             reset_at = next_time_to_complete - buffer
+
+            if self.last_refreshed < previous_time_to_complete:
+                # We missed a chance, bump it to incomplete
+                return False
+
             if datetime.now() > reset_at:
                 return False
             return True
@@ -63,8 +68,9 @@ class Task:
 
     @is_complete.setter
     def is_complete(self, val):
-        self._is_complete = val
-        self.update_last_refreshed()
+        if val is not None:
+            self._is_complete = val
+            self.update_last_refreshed()
 
     @staticmethod
     def convert_cool_down_str_to_delta(cool_down: str) -> timedelta:
