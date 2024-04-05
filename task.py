@@ -60,7 +60,7 @@ class Task:
     @is_complete.setter
     def is_complete(self, val):
         self._is_complete = val
-        if val:
+        if val is not None:
             self.complete()
 
     def get_rendered_stress(self):
