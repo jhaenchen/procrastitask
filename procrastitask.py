@@ -105,16 +105,19 @@ class App:
         self.reset_screen()
         return task_lists_for_prompt[chosen_list_idx]
 
+    def get_raw_db_file(self):
+        with open(self.get_db_location(), "r") as db:
+            return db.read()
+
     def load(self, default_list=None):
         self.load_list_config()
         if self.task_lists:
             self.selected_task_list_name = self.prompt_for_task_list_selection() if not default_list else default_list
         try:
-            with open(self.get_db_location(), "r") as db:
-                json_tasks = json.loads(db.read())
-                actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
-                self.all_tasks = [t for t in actual_all_tasks if (t.list_name == self.selected_task_list_name) or self.selected_task_list_name == "all"]
-                self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name != self.selected_task_list_name) and self.selected_task_list_name != "all"]
+            json_tasks = json.loads(self.get_raw_db_file())
+            actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
+            self.all_tasks = [t for t in actual_all_tasks if (t.list_name == self.selected_task_list_name) or self.selected_task_list_name == "all"]
+            self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name != self.selected_task_list_name) and self.selected_task_list_name != "all"]
         except Exception as e:
             print(f"Error: {e}")
             self.all_tasks = []
