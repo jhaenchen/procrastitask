@@ -1,12 +1,10 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8ae7e150623d6bc3a0b52a2ee6cc630c1925f8e0e40ae110d78ca75127bada2c"
+            "sha256": "c2136f2e60ddbf18ed8e874918b4d6a4a084b6e8be1e0fd73f729408477f8984"
         },
         "pipfile-spec": 6,
-        "requires": {
-            "python_version": "3.11"
-        },
+        "requires": {},
         "sources": [
             {
                 "name": "pypi",
@@ -18,27 +16,29 @@
     "default": {
         "croniter": {
             "hashes": [
-                "sha256:4cb064ce2d8f695b3b078be36ff50115cf8ac306c10a7e8653ee2a5b534673d7",
-                "sha256:d199b2ec3ea5e82988d1f72022433c5f9302b3b3ea9e6bfd6a1518f6ea5e700a"
+                "sha256:f1f8ca0af64212fbe99b1bee125ee5a1b53a9c1b433968d8bca8817b79d237f3",
+                "sha256:fdbb44920944045cc323db54599b321325141d82d14fa7453bc0699826bbe9ed"
             ],
             "index": "pypi",
-            "version": "==2.0.1"
+            "markers": "python_version >= '2.6' and python_version not in '3.0, 3.1, 3.2, 3.3'",
+            "version": "==2.0.5"
         },
         "icalendar": {
             "hashes": [
-                "sha256:7a298bb864526589d0de81f4b736eeb6ff9e539fefb405f7977aa5c1e201ca00",
-                "sha256:81864971ac43a1b7d0a555dc1b667836ce59fc719a7f845a96f2f03205fb83b9"
+                "sha256:73f9be68477722c98320621400943705dcfdbbc6c2b565253f72d3f87e514db8",
+                "sha256:d873bb859df9c6d0e597b16d247436e0f83f7ac1b90a06429b8393fe8afeba40"
             ],
             "index": "pypi",
-            "version": "==5.0.11"
+            "markers": "python_version >= '3.7'",
+            "version": "==5.0.12"
         },
         "python-dateutil": {
             "hashes": [
-                "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86",
-                "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"
+                "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3",
+                "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
-            "version": "==2.8.2"
+            "version": "==2.9.0.post0"
         },
         "pytz": {
             "hashes": [

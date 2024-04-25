@@ -91,6 +91,7 @@ class App:
         with open(dir + "/list_config.json", "r") as lists:
             task_lists = json.loads(lists.read())["lists"]
             self.task_lists = [el['name'] for el in task_lists]
+            return self.task_lists
 
     def get_db_location(self):
         dir = self.config.get("db_location", self.get_current_dir())
