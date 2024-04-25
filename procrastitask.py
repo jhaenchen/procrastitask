@@ -7,7 +7,7 @@ import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime, timedelta
-from typing import Callable, List, Optional, TypeVar
+from typing import Callable, List, Optional, TypeVar, Union
 import ast
 import logging
 
@@ -116,13 +116,17 @@ class App:
         with open(self.get_db_location(), "r") as db:
             return db.read()
 
-    def load(self, default_list=None):
+    def load(self, default_list: Optional[Union[List, str]]=None):
         self.load_list_config()
         if self.task_lists:
             if default_list:
-                self.selected_task_list_name = [default_list]
+                if type(default_list) is list:
+                    self.selected_task_list_name = default_list
+                else:
+                    self.selected_task_list_name = [default_list]
             else:
                 self.selected_task_list_name = self.prompt_for_task_list_selection()
+            log.info(f"List set to: {self.selected_task_list_name}")
         try:
             json_tasks = json.loads(self.get_raw_db_file())
             actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
