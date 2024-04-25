@@ -90,7 +90,7 @@ class App:
         dir = self.config.get("db_location", self.get_current_dir())
         with open(dir + "/list_config.json", "r") as lists:
             task_lists = json.loads(lists.read())["lists"]
-            self.task_lists = [el['name'] for el in task_lists]
+            self.task_lists = [el["name"] for el in task_lists]
             return self.task_lists
 
     def get_db_location(self):
@@ -102,9 +102,15 @@ class App:
         task_lists_for_prompt = ["all"] + self.task_lists
         for list_idx, list_name in enumerate(task_lists_for_prompt):
             print(f"[{list_idx}] {list_name}")
-        chosen_lists_idx = self.get_input_with_validation_mapper(prompt="Select your task list: ", validator_mapper=lambda s: [int(val) for val in s.split(",")])
+        chosen_lists_idx = self.get_input_with_validation_mapper(
+            prompt="Select your task list: ",
+            validator_mapper=lambda s: [int(val) for val in s.split(",")],
+        )
         self.reset_screen()
-        return [task_lists_for_prompt[chosen_list_idx] for chosen_list_idx in chosen_lists_idx]
+        return [
+            task_lists_for_prompt[chosen_list_idx]
+            for chosen_list_idx in chosen_lists_idx
+        ]
 
     def get_raw_db_file(self):
         with open(self.get_db_location(), "r") as db:
@@ -120,8 +126,18 @@ class App:
         try:
             json_tasks = json.loads(self.get_raw_db_file())
             actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
-            self.all_tasks = [t for t in actual_all_tasks if (t.list_name in self.selected_task_list_name) or "all" in self.selected_task_list_name]
-            self.filtered_tasks_to_resave = [t for t in actual_all_tasks if (t.list_name not in self.selected_task_list_name) and "all" not in self.selected_task_list_name]
+            self.all_tasks = [
+                t
+                for t in actual_all_tasks
+                if (t.list_name in self.selected_task_list_name)
+                or "all" in self.selected_task_list_name
+            ]
+            self.filtered_tasks_to_resave = [
+                t
+                for t in actual_all_tasks
+                if (t.list_name not in self.selected_task_list_name)
+                and "all" not in self.selected_task_list_name
+            ]
         except Exception as e:
             print(f"Error: {e}")
             self.all_tasks = []
@@ -135,7 +151,9 @@ class App:
                     def sorter(t: Task):
                         return (t.is_complete, t.title)
 
-                    sorted_tasks = sorted(self.all_tasks + self.filtered_tasks_to_resave, key=sorter)
+                    sorted_tasks = sorted(
+                        self.all_tasks + self.filtered_tasks_to_resave, key=sorter
+                    )
                     task_json_dicts = [task.to_dict() for task in sorted_tasks]
                     json_str = json.dumps(task_json_dicts)
                     db.write(json_str)
@@ -209,8 +227,9 @@ class App:
         new_stress = existing_stress + offset
         found_task.stress = new_stress
         found_task.update_last_refreshed()
-        print(f"Updating task stress for {found_task} from {existing_stress} -> {new_stress}")
-
+        print(
+            f"Updating task stress for {found_task} from {existing_stress} -> {new_stress}"
+        )
 
     def get_numerical_prompt(
         self, prompt_text, also_accept=None, input_func=None, raise_exception=False
@@ -282,7 +301,9 @@ class App:
 
         return to_return_validator
 
-    def edit_or_create_task(self, task_to_edit: Optional[Task] = None, dependent_on=None) -> Task:
+    def edit_or_create_task(
+        self, task_to_edit: Optional[Task] = None, dependent_on=None
+    ) -> Task:
         while True:
             try:
                 title = task_to_edit.title if task_to_edit else ""
@@ -291,7 +312,11 @@ class App:
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
                 stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
-                dependent_on = dependent_on if dependent_on else task_to_edit.dependent_on if task_to_edit else []
+                dependent_on = (
+                    dependent_on
+                    if dependent_on
+                    else task_to_edit.dependent_on if task_to_edit else []
+                )
                 is_complete = task_to_edit.is_complete if task_to_edit else False
                 dynamic = (
                     task_to_edit.stress_dynamic.to_text()
@@ -303,7 +328,18 @@ class App:
                 )
                 cool_down = task_to_edit.cool_down if task_to_edit else ""
                 periodicity = task_to_edit.periodicity if task_to_edit else ""
-                task_list_name = task_to_edit.list_name if task_to_edit else self.selected_task_list_name[0] if (len(self.selected_task_list_name) == 1 and "all" not in self.selected_task_list_name) else "default"
+                task_list_name = (
+                    task_to_edit.list_name
+                    if task_to_edit
+                    else (
+                        self.selected_task_list_name[0]
+                        if (
+                            len(self.selected_task_list_name) == 1
+                            and "all" not in self.selected_task_list_name
+                        )
+                        else "default"
+                    )
+                )
                 (
                     title,
                     description,
@@ -317,7 +353,7 @@ class App:
                     creation_date,
                     cool_down,
                     periodicity,
-                    task_list_name
+                    task_list_name,
                 ) = rlinput(
                     multiprompt={
                         "Title:": title,
@@ -332,7 +368,7 @@ class App:
                         "Creation Date:": creation_date,
                         "Cool down:": cool_down,
                         "Periodicity": periodicity,
-                        "Task List Name:": task_list_name
+                        "Task List Name:": task_list_name,
                     }
                 )
 
@@ -413,7 +449,7 @@ class App:
                     creation_date=creation_date,
                     cool_down=cool_down,
                     periodicity=periodicity,
-                    list_name=task_list_name
+                    list_name=task_list_name,
                 )
                 return created_task
             except ValueError as e:
@@ -422,7 +458,7 @@ class App:
 
     def verbose_create_new_task(self):
         return self.edit_or_create_task()
-    
+
     @property
     def cron_validator(self):
         def validator(val):
@@ -435,6 +471,7 @@ class App:
             except Exception as e:
                 print(e)
                 raise ValueError("Invalid cron")
+
         return validator
 
     @property
@@ -448,6 +485,7 @@ class App:
             except Exception as e:
                 print(e)
                 raise ValueError("Invalid interval")
+
         return validator
 
     def create_new_task(self):
@@ -462,7 +500,8 @@ class App:
         )
         increase_every_x_days = input("Increase every x days: ")
         cool_down = self.get_input_with_validation_mapper(
-            "Cool down: ", self.interval_validator)
+            "Cool down: ", self.interval_validator
+        )
         periodicity = self.get_input_with_validation_mapper(
             "Periodic cron: ", self.cron_validator
         )
@@ -475,12 +514,21 @@ class App:
             difficulty=difficulty,
             due_date=date,
             dependent_on=dependent_on,
-            stress_dynamic=BaseDynamic.find_dynamic(increase_every_x_days)
-            if increase_every_x_days
-            else None,
+            stress_dynamic=(
+                BaseDynamic.find_dynamic(increase_every_x_days)
+                if increase_every_x_days
+                else None
+            ),
             cool_down=cool_down,
             periodicity=periodicity,
-            list_name=self.selected_task_list_name[0] if ("all" not in self.selected_task_list_name and len(self.selected_task_list_name) == 1) else "default"
+            list_name=(
+                self.selected_task_list_name[0]
+                if (
+                    "all" not in self.selected_task_list_name
+                    and len(self.selected_task_list_name) == 1
+                )
+                else "default"
+            ),
         )
         return created_task
 
@@ -735,13 +783,16 @@ class App:
             found.create_and_launch_ical_event()
         if command.startswith("n") and command not in ["n", "nn"]:
             found = self.find_task_by_any_id(command[1:])
-            self.all_tasks.append(self.edit_or_create_task(dependent_on=[found.identifier]))
+            self.all_tasks.append(
+                self.edit_or_create_task(dependent_on=[found.identifier])
+            )
         if command.startswith("p"):
             found = self.find_task_by_any_id(command[1:])
             new_task = self.edit_or_create_task()
             self.all_tasks.append(new_task)
             found.dependent_on = [*found.dependent_on, new_task.identifier]
         return
+
 
 if __name__ == "__main__":
     os.system("clear")
