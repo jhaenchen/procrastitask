@@ -85,6 +85,7 @@ class Task:
         raise ValueError(f"The set cool down str is not parseable: {cool_down}")
 
     def get_rendered_stress(self):
+        log.debug(f"Evaluating rendered stress for task {self.title}")
         base_stress = self.stress
         if not self.stress_dynamic:
             return base_stress
