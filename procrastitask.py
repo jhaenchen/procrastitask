@@ -143,6 +143,7 @@ class App:
                 and "all" not in self.selected_task_list_name
             ]
         except Exception as e:
+            log.error(e)
             print(f"Error: {e}")
             self.all_tasks = []
 
@@ -368,7 +369,7 @@ class App:
                         "Duration:": duration,
                         "Dependent On:": dependent_on,
                         "Is Complete:": is_complete,
-                        "Increase every x days:": dynamic,
+                        "Stress dynamic:": dynamic,
                         "Creation Date:": creation_date,
                         "Cool down:": cool_down,
                         "Periodicity": periodicity,
@@ -502,7 +503,7 @@ class App:
         dependent_on = self.get_input_with_validation_mapper(
             "Dependent on tasks: ", self.dependence_validator
         )
-        increase_every_x_days = input("Increase every x days: ")
+        dynamic_str = input("Stress dynamic: ")
         cool_down = self.get_input_with_validation_mapper(
             "Cool down: ", self.interval_validator
         )
@@ -519,8 +520,8 @@ class App:
             due_date=date,
             dependent_on=dependent_on,
             stress_dynamic=(
-                BaseDynamic.find_dynamic(increase_every_x_days)
-                if increase_every_x_days
+                BaseDynamic.find_dynamic(dynamic_str)
+                if dynamic_str
                 else None
             ),
             cool_down=cool_down,
