@@ -24,12 +24,12 @@ class LinearDynamic(BaseDynamic):
 
     _full_prefix = "dynamic-linear-day."
 
-    _prefixes = [_full_prefix, "linear-day.", "dynamic-linear-day-"]
+    prefixes = [_full_prefix, "linear-day.", "dynamic-linear-day-"]
 
     @staticmethod
     def from_text(text: str) -> "LinearDynamic":
         parts = None
-        for prefix in LinearDynamic._prefixes:
+        for prefix in LinearDynamic.prefixes:
             if prefix in text:
                 parts = text.split(prefix)
         if parts is None:

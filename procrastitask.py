@@ -267,8 +267,8 @@ class App:
             try:
                 mapped = validator_mapper(result)
                 return mapped
-            except ValueError:
-                message = f"\nBad input for prompt {prompt}: {result}. Try again.\n"
+            except ValueError as e:
+                message = f"\nBad input for prompt {prompt}: {result}. {e}\n"
                 if raise_exception:
                     raise ValueError(message)
                 print(message)
@@ -503,7 +503,9 @@ class App:
         dependent_on = self.get_input_with_validation_mapper(
             "Dependent on tasks: ", self.dependence_validator
         )
-        dynamic_str = input("Stress dynamic: ")
+        dynamic = self.get_input_with_validation_mapper("Stress dynamic: ", lambda s: BaseDynamic.find_dynamic(s)
+                if s
+                else None)
         cool_down = self.get_input_with_validation_mapper(
             "Cool down: ", self.interval_validator
         )
@@ -519,11 +521,7 @@ class App:
             difficulty=difficulty,
             due_date=date,
             dependent_on=dependent_on,
-            stress_dynamic=(
-                BaseDynamic.find_dynamic(dynamic_str)
-                if dynamic_str
-                else None
-            ),
+            stress_dynamic=dynamic,
             cool_down=cool_down,
             periodicity=periodicity,
             list_name=(
