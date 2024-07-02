@@ -18,12 +18,12 @@ class LinearWithPeakDynamic(BaseDynamic):
 
     _full_prefix = "dynamic-linear-day-peaked."
 
-    _prefixes = [_full_prefix, "linear-day-peaked."]
+    prefixes = [_full_prefix, "linear-day-peaked."]
 
     @staticmethod
     def from_text(text: str) -> "LinearWithPeakDynamic":
         interval, peak = None, None
-        for prefix in LinearWithPeakDynamic._prefixes:
+        for prefix in LinearWithPeakDynamic.prefixes:
             if prefix in text:
                 interval, peak = text.split(prefix)[1].split("-")
         if None in [interval, peak]:
