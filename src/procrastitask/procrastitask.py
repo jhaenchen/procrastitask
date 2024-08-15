@@ -13,8 +13,10 @@ import logging
 
 import croniter
 
-from dynamics.base_dynamic import BaseDynamic
-from task import Task
+from procrastitask.dynamics.base_dynamic import BaseDynamic
+from procrastitask.task import Task
+
+
 
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 

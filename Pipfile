@@ -9,6 +9,7 @@ croniter = "*"
 
 [dev-packages]
 pytest = "*"
+procrastitask = {file = ".", editable = true}
 
 [scripts]
 test = "pytest"

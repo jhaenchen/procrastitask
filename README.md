@@ -97,5 +97,6 @@ To run unit tests:
 
 ```
 pipenv shell # if not already active
+pipenv install --dev
 pytest
 ```

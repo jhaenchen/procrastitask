@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2c2c45e7195d58fdee93965143bc8da52d3ac107b9b0943d9026c00fc48c8a77"
+            "sha256": "ce588f6063917cfb9f75c2f4efb245abd903f20f138d15d0a0b849dbd6093632"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -80,6 +80,10 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==1.5.0"
+        },
+        "procrastitask": {
+            "editable": true,
+            "file": "."
         },
         "pytest": {
             "hashes": [

@@ -10,7 +10,7 @@ import uuid
 import icalendar
 import croniter
 
-from dynamics.base_dynamic import BaseDynamic
+from procrastitask.dynamics.base_dynamic import BaseDynamic
 
 log = logging.getLogger()
 
