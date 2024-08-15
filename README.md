@@ -100,3 +100,12 @@ pipenv shell # if not already active
 pipenv install --dev
 pytest
 ```
+
+To generate coverage:
+
+```
+pipenv shell # if not already active
+pipenv install --dev
+coverage run -m pytest
+coverage html # open index.html within htmlcov directory
+```
