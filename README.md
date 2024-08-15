@@ -81,3 +81,12 @@ db_location:/put/a/directory/path/
 
 * More dynamics: linear-with-cap, gaussian, gaussian-with-shelf, peak-at-due-time
 * Multi coordinate support (joy, stress, love, etc, these should all be units in our list of life)
+
+
+### Development
+
+To run unit tests:
+
+```
+pipenv run test
+```

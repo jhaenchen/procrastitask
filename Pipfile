@@ -8,4 +8,7 @@ icalendar = "*"
 croniter = "*"
 
 [dev-packages]
+pytest = "*"
 
+[scripts]
+test = "pytest"
