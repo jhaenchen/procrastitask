@@ -1,0 +1,2 @@
+class TaskCollection:
+    pass

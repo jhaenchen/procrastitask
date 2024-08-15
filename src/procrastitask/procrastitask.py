@@ -116,7 +116,7 @@ class App:
         with open(self.get_db_location(), "r") as db:
             return db.read()
 
-    def load(self, default_list: Optional[Union[List, str]]=None):
+    def load(self, default_list: Optional[Union[List, str]] = None):
         self.load_list_config()
         if self.task_lists:
             if default_list:
@@ -503,9 +503,9 @@ class App:
         dependent_on = self.get_input_with_validation_mapper(
             "Dependent on tasks: ", self.dependence_validator
         )
-        dynamic = self.get_input_with_validation_mapper("Stress dynamic: ", lambda s: BaseDynamic.find_dynamic(s)
-                if s
-                else None)
+        dynamic = self.get_input_with_validation_mapper(
+            "Stress dynamic: ", lambda s: BaseDynamic.find_dynamic(s) if s else None
+        )
         cool_down = self.get_input_with_validation_mapper(
             "Cool down: ", self.interval_validator
         )

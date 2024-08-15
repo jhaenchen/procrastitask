@@ -85,8 +85,17 @@ db_location:/put/a/directory/path/
 
 ### Development
 
+To run procrastitask:
+
+```
+pipenv shell
+pipenv install
+python procrastitask.py
+```
+
 To run unit tests:
 
 ```
-pipenv run test
+pipenv shell # if not already active
+pytest
 ```
