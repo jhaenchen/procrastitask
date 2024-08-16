@@ -15,6 +15,7 @@ import croniter
 
 from procrastitask.dynamics.base_dynamic import BaseDynamic
 from procrastitask.task import Task
+from procrastitask.task_collection import TaskCollection
 
 
 
@@ -25,7 +26,7 @@ log.setLevel("DEBUG")
 logging.basicConfig(filename="log.txt")
 
 
-def rlinput(prefill: str = "", prompt="Edit:", multiprompt: dict = None) -> List[str]:
+def rlinput(prefill: str = "", prompt="Edit:", multiprompt: Optional[dict] = None) -> List[str]:
     if multiprompt:
         final_str = ""
         for key, val in multiprompt.items():
@@ -144,6 +145,7 @@ class App:
                 if (t.list_name not in self.selected_task_list_name)
                 and "all" not in self.selected_task_list_name
             ]
+            self.task_collection = TaskCollection(self.all_tasks)
         except Exception as e:
             log.error(e)
             print(f"Error: {e}")
@@ -698,6 +700,7 @@ class App:
     def paged_task_list(self):
         self.reset_screen()
         self.print_list_name()
+        print(f" (velocity: {self.task_collection.get_velocity(interval=timedelta(weeks=1))}/wk)")
         rows = int(
             subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
                 "utf-8"
@@ -737,6 +740,7 @@ class App:
         ]
         if found_id_matches:
             return found_id_matches[0]
+        return None
 
     CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4): "
 

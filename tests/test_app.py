@@ -1,6 +1,6 @@
 
 import unittest
-from procrastitask.procrastitask import App
+from procrastitask.procrastitask_app import App
 
 
 class TestApp(unittest.TestCase):
