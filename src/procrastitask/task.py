@@ -5,7 +5,7 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, TypedDict
 import uuid
 import icalendar
 import croniter
@@ -13,6 +13,11 @@ import croniter
 from procrastitask.dynamics.base_dynamic import BaseDynamic
 
 log = logging.getLogger()
+
+
+class CompletionRecord(TypedDict):
+    completed_at: datetime
+    stress_at_completion: int
 
 
 @dataclass
@@ -34,6 +39,7 @@ class Task:
     list_name: str = "default"
     cool_down: str = None
     periodicity: str = None
+    history: List[CompletionRecord] = field(default_factory=lambda: [])
 
     @property
     def is_complete(self):
@@ -71,6 +77,8 @@ class Task:
         if val is not None:
             self._is_complete = val
             self.update_last_refreshed()
+            if val == True:
+                self.history.append(CompletionRecord(self.last_refreshed, self.get_rendered_stress()))
 
     @staticmethod
     def convert_cool_down_str_to_delta(cool_down: str) -> timedelta:
@@ -186,7 +194,7 @@ class Task:
 
     def complete(self):
         self.update_last_refreshed()
-        self._is_complete = True
+        self.is_complete = True
 
     @staticmethod
     def from_dict(incoming_dict):
@@ -216,7 +224,8 @@ class Task:
             else datetime.now(),
             list_name=incoming_dict.get("list_name", "default"),
             cool_down=incoming_dict.get("cool_down"),
-            periodicity=incoming_dict.get("periodicity")
+            periodicity=incoming_dict.get("periodicity"),
+            history=incoming_dict.get("history", [])
         )
 
     def to_dict(self):
@@ -237,5 +246,6 @@ class Task:
             "creation_date": self.creation_date.isoformat(),
             "list_name": self.list_name,
             "cool_down": self.cool_down,
-            "periodicity": self.periodicity
+            "periodicity": self.periodicity,
+            "history": self.history
         }
