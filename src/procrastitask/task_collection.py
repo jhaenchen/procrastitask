@@ -12,7 +12,7 @@ class TaskCollection:
         accomplished_total = 0
         for task in completed_tasks:
             for completion in task.history:
-                if datetime.now() - completion["completed_at"] < interval:
-                    accomplished_total += completion["stress_at_completion"]
+                if datetime.now() - completion.completed_at < interval:
+                    accomplished_total += completion.stress_at_completion
 
         return accomplished_total

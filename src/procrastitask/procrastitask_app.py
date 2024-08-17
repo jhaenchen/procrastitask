@@ -787,7 +787,8 @@ class App:
             print("Saved.")
         if command == "load":
             self.load()
-            self.list_all_tasks()
+            self.paged_task_list()
+            #self.list_all_tasks()
         if command == "w":
             self.wizard()
         if command == "r":

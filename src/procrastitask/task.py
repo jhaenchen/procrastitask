@@ -15,9 +15,20 @@ from procrastitask.dynamics.base_dynamic import BaseDynamic
 log = logging.getLogger()
 
 
-class CompletionRecord(TypedDict):
+@dataclass
+class CompletionRecord:
     completed_at: datetime
     stress_at_completion: int
+
+    def to_dict(self):
+        return {
+            "completed_at": self.completed_at.isoformat(),
+            "stress_at_completion": self.stress_at_completion
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(completed_at=datetime.fromisoformat(data["completed_at"]), stress_at_completion=data["stress_at_completion"])
 
 
 @dataclass
@@ -225,7 +236,7 @@ class Task:
             list_name=incoming_dict.get("list_name", "default"),
             cool_down=incoming_dict.get("cool_down"),
             periodicity=incoming_dict.get("periodicity"),
-            history=incoming_dict.get("history", [])
+            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])]
         )
 
     def to_dict(self):
@@ -247,5 +258,5 @@ class Task:
             "list_name": self.list_name,
             "cool_down": self.cool_down,
             "periodicity": self.periodicity,
-            "history": self.history
+            "history": [completion.to_dict() for completion in self.history]
         }
