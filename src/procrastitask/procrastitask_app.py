@@ -182,7 +182,7 @@ class App:
         return os.path.dirname(os.path.realpath(__file__))
 
     def get_config_path(self):
-        dir_path = self.get_current_dir()
+        dir_path = self.get_current_dir() + "/../.."
         return dir_path + "/" + self.CONFIG_FILE_NAME
 
     def does_local_config_file_exist(self):

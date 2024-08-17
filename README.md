@@ -70,7 +70,7 @@ The list is sorted first by stress, then by difficulty. However, there are vario
 You may configure an alternate location for the storage of your data. This allows you to store the file to a place like Dropbox or iCloud and view it on your phone, since it's just JSON. It also helps you back up your tasks.
 
 To create a custom config:
-* Create config.ini next to the Python executable.
+* Create config.ini at the top level of this project, next to this README file, for example.
 In the file:
 ```
 [taks_config]
