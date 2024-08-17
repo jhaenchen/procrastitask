@@ -90,14 +90,14 @@ class App:
         return config
 
     def load_list_config(self):
-        dir = self.config.get("db_location", self.get_current_dir())
+        dir = self.config.get("db_location", self.get_current_dir() + "/../..")
         with open(dir + "/list_config.json", "r") as lists:
             task_lists = json.loads(lists.read())["lists"]
             self.task_lists = [el["name"] for el in task_lists]
             return self.task_lists
 
     def get_db_location(self):
-        dir = self.config.get("db_location", self.get_current_dir())
+        dir = self.config.get("db_location", self.get_current_dir() + "/../..")
         return dir + "/" + self.TASKS_FILE_NAME
 
     def prompt_for_task_list_selection(self):
@@ -145,31 +145,36 @@ class App:
                 if (t.list_name not in self.selected_task_list_name)
                 and "all" not in self.selected_task_list_name
             ]
-            self.task_collection = TaskCollection(self.all_tasks)
+            
         except Exception as e:
             log.error(e)
             print(f"Error: {e}")
             self.all_tasks = []
+        self.task_collection = TaskCollection(self.all_tasks)
 
     def save(self):
-        with open(self.get_db_location(), "r") as existing_db:
-            existing_content = existing_db.read()
-            with open(self.get_db_location(), "w") as db:
-                try:
+        backed_up_content = []
+        try:
+            with open(self.get_db_location(), "r") as existing_db:
+                backed_up_content = existing_db.read()
+        except FileNotFoundError:
+            log.debug(f"Couldn't find an existing DB at location {self.get_db_location()}. One will be created.")
+        with open(self.get_db_location(), "w") as db:
+            try:
 
-                    def sorter(t: Task):
-                        return (t.is_complete, t.title)
+                def sorter(t: Task):
+                    return (t.is_complete, t.title)
 
-                    sorted_tasks = sorted(
-                        self.all_tasks + self.filtered_tasks_to_resave, key=sorter
-                    )
-                    task_json_dicts = [task.to_dict() for task in sorted_tasks]
-                    json_str = json.dumps(task_json_dicts)
-                    db.write(json_str)
-                except Exception as e:
-                    print(f"Failed to save:{e}")
-                    sleep(5)
-                    db.write(existing_content)
+                sorted_tasks = sorted(
+                    self.all_tasks + self.filtered_tasks_to_resave, key=sorter
+                )
+                task_json_dicts = [task.to_dict() for task in sorted_tasks]
+                json_str = json.dumps(task_json_dicts)
+                db.write(json_str)
+            except Exception as e:
+                print(f"Failed to save:{e}")
+                sleep(5)
+                db.write(backed_up_content)
 
     CONFIG_FILE_NAME = "config.ini"
 
@@ -549,7 +554,7 @@ class App:
         return f"(list: {self.selected_task_list_name})"
 
     def print_list_name(self):
-        print(self.get_list_name_text())
+        print(self.get_list_name_text(), end="")
 
     def list_all_tasks(
         self,
@@ -699,8 +704,8 @@ class App:
 
     def paged_task_list(self):
         self.reset_screen()
-        self.print_list_name()
-        print(f" (velocity: {self.task_collection.get_velocity(interval=timedelta(weeks=1))}/wk)")
+        list_and_velocity_string = self.get_list_name_text() + f" (velocity: {self.task_collection.get_velocity(interval=timedelta(weeks=1))}/wk)"
+        print(list_and_velocity_string)
         rows = int(
             subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
                 "utf-8"
@@ -714,7 +719,7 @@ class App:
         pos = [0, 0]
         rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
         rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
-        rows -= math.ceil(len(self.get_list_name_text()) / columns) + 1
+        rows -= math.ceil(len(list_and_velocity_string) / columns) + 1
         would_print_collection = self.list_all_tasks(also_print=False)
         if self.should_do_refresh():
             would_print_collection = [
