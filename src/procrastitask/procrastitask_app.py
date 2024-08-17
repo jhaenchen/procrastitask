@@ -132,7 +132,7 @@ class App:
             log.info(f"List set to: {self.selected_task_list_name}")
         try:
             json_tasks = json.loads(self.get_raw_db_file())
-            log.debug(f"Loaded {len(json_tasks)} from file {self.get_raw_db_file()}")
+            log.debug(f"Loaded {len(json_tasks)} from file {self.get_db_location()}")
             actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
             self.all_tasks = [
                 t
