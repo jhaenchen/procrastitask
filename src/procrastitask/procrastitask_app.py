@@ -151,7 +151,7 @@ class App:
             log.error(e)
             print(f"Error: {e}")
             self.all_tasks = []
-        self.task_collection = TaskCollection(self.all_tasks)
+        self.task_collection = TaskCollection(filtered_tasks=self.all_tasks, unfiltered_tasks=self.all_tasks + self.filtered_tasks_to_resave)
 
     def save(self):
         backed_up_content = []
@@ -705,7 +705,9 @@ class App:
 
     def paged_task_list(self):
         self.reset_screen()
-        list_and_velocity_string = self.get_list_name_text() + f" (velocity: {self.task_collection.get_velocity(interval=timedelta(weeks=1))}/wk)"
+        velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
+        velicocity_percentage_str = "{:.2f}".format(velocity_percentage)
+        list_and_velocity_string = self.get_list_name_text() + f" (velocity: {velicocity_percentage_str}%/wk)"
         print(list_and_velocity_string)
         rows = int(
             subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
