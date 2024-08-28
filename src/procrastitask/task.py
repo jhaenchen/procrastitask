@@ -5,7 +5,7 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
-from typing import List, TypedDict
+from typing import List, TypedDict, Optional
 import uuid
 import icalendar
 import croniter
@@ -41,15 +41,15 @@ class Task:
     duration: int
     stress: int
     _is_complete: bool = False
-    due_date: datetime = None
+    due_date: Optional[datetime] = None
     last_refreshed: datetime = field(default_factory=datetime.now)
     identifier: str = field(default_factory=lambda: str(uuid.uuid4()))
     dependent_on: List[int] = field(default_factory=lambda: [])
-    stress_dynamic: BaseDynamic = None
+    stress_dynamic: Optional[BaseDynamic] = None
     creation_date: datetime = field(default_factory=datetime.now)
     list_name: str = "default"
-    cool_down: str = None
-    periodicity: str = None
+    cool_down: Optional[str] = None
+    periodicity: Optional[str] = None
     history: List[CompletionRecord] = field(default_factory=lambda: [])
 
     @property
@@ -108,7 +108,11 @@ class Task:
         base_stress = self.stress
         if not self.stress_dynamic:
             return base_stress
-        return self.stress_dynamic.apply(self.last_refreshed, self.stress)
+        base_stress_date = self.last_refreshed
+        if self.periodicity:
+            cron = croniter.croniter(self.periodicity, datetime.now())
+            base_stress_date = cron.get_prev(datetime)
+        return self.stress_dynamic.apply(base_stress_date, self.stress)
 
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()
