@@ -55,32 +55,39 @@ class Task:
     @property
     def is_complete(self):
         log.debug(f"Evaluating is_complete for task named: {self.title}")
-        if not self._is_complete:
-            log.debug("Task is incomplete, returning incomplete.")
+
+        # Wrap this in a function so matter what, the result it returns get assigned to the inner class property
+        def render_logic():
+            if not self._is_complete:
+                log.debug("Task is incomplete, returning incomplete.")
+                return self._is_complete
+            if self.cool_down:
+                log.debug("Cool down is configured. Let's evaluate.")
+                time_since_last_completion = datetime.now() - self.last_refreshed
+                expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
+                log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
+                if time_since_last_completion > (expected_interval * .9):
+                    return False
+                return True
+            if self.periodicity:
+                cron = croniter.croniter(self.periodicity, datetime.now())
+                next_time_to_complete = cron.get_next(datetime)
+                previous_time_to_complete = cron.get_prev(datetime)
+                interval = next_time_to_complete - previous_time_to_complete
+                buffer = interval * .10
+                reset_at = next_time_to_complete - buffer
+
+                if self.last_refreshed < previous_time_to_complete:
+                    # We missed a chance, bump it to incomplete
+                    return False
+
+                if datetime.now() > reset_at:
+                    return False
+                return True
             return self._is_complete
-        if self.cool_down:
-            log.debug("Cool down is configured. Let's evaluate.")
-            time_since_last_completion = datetime.now() - self.last_refreshed
-            expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
-            log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
-            if time_since_last_completion > (expected_interval * .9):
-                return False
-            return True
-        if self.periodicity:
-            cron = croniter.croniter(self.periodicity, datetime.now())
-            next_time_to_complete = cron.get_next(datetime)
-            previous_time_to_complete = cron.get_prev(datetime)
-            interval = next_time_to_complete - previous_time_to_complete
-            buffer = interval * .10
-            reset_at = next_time_to_complete - buffer
-
-            if self.last_refreshed < previous_time_to_complete:
-                # We missed a chance, bump it to incomplete
-                return False
-
-            if datetime.now() > reset_at:
-                return False
-            return True
+        
+        result = render_logic()
+        self._is_complete = result
         return self._is_complete
 
     @is_complete.setter
@@ -250,7 +257,7 @@ class Task:
             "duration": self.duration,
             "stress": self.stress,
             "difficulty": self.difficulty,
-            "is_complete": self._is_complete,
+            "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
             "last_refreshed": self.last_refreshed.isoformat(),
             "identifier": self.identifier,
