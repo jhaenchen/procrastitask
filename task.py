@@ -35,6 +35,12 @@ class Task:
     cool_down: str = None
     periodicity: str = None
 
+    def _format_num_as_int_if_possible(self, val):
+        floated = float(val)
+        if floated.is_integer():
+            return int(floated)
+        return floated
+
     @property
     def is_complete(self):
         log.debug(f"Evaluating is_complete for task named: {self.title}")
@@ -182,7 +188,7 @@ class Task:
         return not saw_incomplete
 
     def headline(self):
-        return f"{self.title} ({self.duration}min, stress: {int(self.get_rendered_stress())}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
+        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
 
     def complete(self):
         self.update_last_refreshed()
