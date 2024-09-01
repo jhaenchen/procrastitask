@@ -11,11 +11,11 @@ log.setLevel("DEBUG")
 @dataclass
 class LinearDynamic(BaseDynamic):
     """
-    In this dynamic, stress increases by 1 every X days.
+    In this dynamic, stress increases by 1 every X days. X can be a decimal.
     """
 
     # How often should the stress increase by one
-    interval: int
+    interval: float
 
     def apply(self, last_updated_date: datetime, base_stress: int) -> float:
         offset = (datetime.now() - last_updated_date).days / self.interval
@@ -35,7 +35,7 @@ class LinearDynamic(BaseDynamic):
         if parts is None:
             raise ValueError(f"Invalid text repr: {text}")
 
-        return LinearDynamic(interval=int(parts[-1:][0]))
+        return LinearDynamic(interval=float(parts[-1:][0]))
 
     def to_text(self):
         return f"dynamic-linear-day-{self.interval}"
