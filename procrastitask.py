@@ -242,7 +242,7 @@ class App:
         while True:
             try:
                 result = input_func(prompt_text) if input_func else input(prompt_text)
-                return int(result)
+                return float(result)
             except ValueError:
                 message = (
                     f"\nBad input for prompt {prompt_text}: {result}. Try again.\n"
@@ -429,7 +429,7 @@ class App:
 
                     # Real quick... if they changed the stress,
                     # update the last_refreshed date too
-                    if int(task_to_edit.get_rendered_stress()) != int(stress):
+                    if float(task_to_edit.get_rendered_stress()) != float(stress):
                         task_to_edit.last_refreshed = datetime.now()
 
                     task_to_edit.stress = stress
@@ -598,7 +598,7 @@ class App:
 
     def _is_number(self, num_string):
         try:
-            int(num_string)
+            float(num_string)
             return True
         except ValueError:
             return False
