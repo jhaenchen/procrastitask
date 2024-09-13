@@ -70,7 +70,7 @@ The list is sorted first by stress, then by difficulty. However, there are vario
 You may configure an alternate location for the storage of your data. This allows you to store the file to a place like Dropbox or iCloud and view it on your phone, since it's just JSON. It also helps you back up your tasks.
 
 To create a custom config:
-* Create config.ini next to the Python executable.
+* Create config.ini at the top level of this project, next to this README file, for example.
 In the file:
 ```
 [taks_config]
@@ -81,3 +81,31 @@ db_location:/put/a/directory/path/
 
 * More dynamics: linear-with-cap, gaussian, gaussian-with-shelf, peak-at-due-time
 * Multi coordinate support (joy, stress, love, etc, these should all be units in our list of life)
+
+
+### Development
+
+To run procrastitask:
+
+```
+pipenv shell
+pipenv install
+python procrastitask.py
+```
+
+To run unit tests:
+
+```
+pipenv shell # if not already active
+pipenv install --dev
+pytest
+```
+
+To generate coverage:
+
+```
+pipenv shell # if not already active
+pipenv install --dev
+coverage run -m pytest
+coverage html # open index.html within htmlcov directory
+```

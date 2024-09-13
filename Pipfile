@@ -8,4 +8,11 @@ icalendar = "*"
 croniter = "*"
 
 [dev-packages]
+pytest = "*"
+coverage = "*"
+types-croniter = "*"
+procrastitask = {file = ".", editable = true}
+freezegun = "*"
 
+[scripts]
+test = "pytest"

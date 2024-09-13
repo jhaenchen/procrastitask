@@ -9,8 +9,9 @@
     {
       "name": "life_goals"
     },
-    {
-      "name": "work"
-    }
+    {"name": "work"},
+    {"name": "travel_ideas"},
+    {"name": "ventana"},
+    {"name": "side_projects"}
   ]
 }

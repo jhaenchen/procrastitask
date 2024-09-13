@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from dynamics.base_dynamic import BaseDynamic
+from .base_dynamic import BaseDynamic
 
 
 @dataclass

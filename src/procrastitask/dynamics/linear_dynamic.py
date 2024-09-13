@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 
-from dynamics.base_dynamic import BaseDynamic
+from .base_dynamic import BaseDynamic
 
 log = logging.getLogger()
 log.setLevel("DEBUG")
