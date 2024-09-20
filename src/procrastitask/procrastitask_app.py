@@ -14,7 +14,7 @@ import logging
 import croniter
 
 from procrastitask.dynamics.base_dynamic import BaseDynamic
-from procrastitask.task import Task
+from procrastitask.task import Task, TaskState
 from procrastitask.task_collection import TaskCollection
 
 
@@ -774,6 +774,10 @@ class App:
             selected_task = self.cached_listed_tasks.get(int(index_val))
             selected_task.complete()
             print("\nTask completed.")
+        if command.startswith("q"):
+            index_val = command.split("q")[1]
+            selected_task: Task = self.cached_listed_tasks.get(int(index_val))
+            selected_task.current_status = TaskState.QUEUED
         if command.startswith("d"):
             index_val = command.split("d")[1]
             selected_task = self.cached_listed_tasks.get(int(index_val))

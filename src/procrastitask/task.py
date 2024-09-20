@@ -1,3 +1,4 @@
+from enum import StrEnum
 import logging
 from dataclasses import dataclass, field
 import math
@@ -13,6 +14,12 @@ import croniter
 from procrastitask.dynamics.base_dynamic import BaseDynamic
 
 log = logging.getLogger()
+
+class TaskState(StrEnum):
+    TODO = "todo"
+    QUEUED = "queued"
+    COMPLETE = "complete"
+
 
 
 @dataclass
@@ -51,42 +58,69 @@ class Task:
     cool_down: Optional[str] = None
     periodicity: Optional[str] = None
     history: List[CompletionRecord] = field(default_factory=lambda: [])
+    _current_status: TaskState = TaskState.TODO
 
     def _format_num_as_int_if_possible(self, val):
         floated = float(val)
         if floated.is_integer():
             return int(floated)
         return floated
+    
+    @property
+    def current_status(self):
+        # If it's now done, that should be the status
+        if self.is_complete:
+            self._current_status = TaskState.COMPLETE
+        # If it's not done....
+        else:
+            # But the status thinks it is
+            if self._current_status == TaskState.COMPLETE:
+                # Reset it to pending
+                self._current_status = TaskState.TODO
+        
+        return self._current_status
+    
+    @current_status.setter
+    def current_status(self, new_val: TaskState):
+        # If it was previously complete and you set it to something else, uncomplete it
+        if self.is_complete and new_val != TaskState.COMPLETE:
+            self.is_complete = False
+        self._current_status = new_val
 
     @property
     def is_complete(self):
-        log.debug(f"Evaluating is_complete for task named: {self.title}")
-        if not self._is_complete:
-            log.debug("Task is incomplete, returning incomplete.")
+        def evaluator():
+            log.debug(f"Evaluating is_complete for task named: {self.title}")
+            if not self._is_complete:
+                log.debug("Task is incomplete, returning incomplete.")
+                return self._is_complete
+            if self.cool_down:
+                log.debug("Cool down is configured. Let's evaluate.")
+                time_since_last_completion = datetime.now() - self.last_refreshed
+                expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
+                log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
+                if time_since_last_completion > (expected_interval * .9):
+                    return False
+                return True
+            if self.periodicity:
+                cron = croniter.croniter(self.periodicity, datetime.now())
+                next_time_to_complete = cron.get_next(datetime)
+                previous_time_to_complete = cron.get_prev(datetime)
+                interval = next_time_to_complete - previous_time_to_complete
+                buffer = interval * .10
+                reset_at = next_time_to_complete - buffer
+
+                if self.last_refreshed < previous_time_to_complete:
+                    # We missed a chance, bump it to incomplete
+                    return False
+
+                if datetime.now() > reset_at:
+                    return False
+                return True
             return self._is_complete
-        if self.cool_down:
-            log.debug("Cool down is configured. Let's evaluate.")
-            time_since_last_completion = datetime.now() - self.last_refreshed
-            expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
-            log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
-            if time_since_last_completion > (expected_interval * .9):
-                return False
-            return True
-        if self.periodicity:
-            cron = croniter.croniter(self.periodicity, datetime.now())
-            next_time_to_complete = cron.get_next(datetime)
-            previous_time_to_complete = cron.get_prev(datetime)
-            interval = next_time_to_complete - previous_time_to_complete
-            buffer = interval * .10
-            reset_at = next_time_to_complete - buffer
-
-            if self.last_refreshed < previous_time_to_complete:
-                # We missed a chance, bump it to incomplete
-                return False
-
-            if datetime.now() > reset_at:
-                return False
-            return True
+        
+        result = evaluator()
+        self._is_complete = result
         return self._is_complete
 
     @is_complete.setter
@@ -246,7 +280,8 @@ class Task:
             list_name=incoming_dict.get("list_name", "default"),
             cool_down=incoming_dict.get("cool_down"),
             periodicity=incoming_dict.get("periodicity"),
-            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])]
+            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])],
+            _current_status=incoming_dict.get("status", TaskState.COMPLETE if incoming_dict.get("is_complete") == True else TaskState.TODO)
         )
 
     def to_dict(self):
@@ -268,5 +303,6 @@ class Task:
             "list_name": self.list_name,
             "cool_down": self.cool_down,
             "periodicity": self.periodicity,
-            "history": [completion.to_dict() for completion in self.history]
+            "history": [completion.to_dict() for completion in self.history],
+            "status": self._current_status
         }
