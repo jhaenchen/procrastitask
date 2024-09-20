@@ -18,7 +18,6 @@ from procrastitask.task import Task, TaskState
 from procrastitask.task_collection import TaskCollection
 
 
-
 EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
 
 log = logging.getLogger()
@@ -146,7 +145,7 @@ class App:
                 if (t.list_name not in self.selected_task_list_name)
                 and "all" not in self.selected_task_list_name
             ]
-            
+
         except Exception as e:
             log.error(e)
             print(f"Error: {e}")
@@ -567,43 +566,91 @@ class App:
         if also_print:
             self.print_list_name()
         tasks = task_list_override or self.all_tasks
+
+        # Separate queued tasks and other incomplete tasks
+        queued_tasks = [task for task in tasks if task.current_status == TaskState.QUEUED]
+        other_tasks = [
+            task for task in tasks
+            if (task.current_status != TaskState.QUEUED) and
+               ((not smart_filter) or (not task.is_complete and task.dependent_tasks_complete(tasks)))
+        ]
+
+        # Sort tasks
+        queued_tasks_sorted = sorted(queued_tasks, key=self.task_sorter, reverse=True)
+        other_tasks_sorted = sorted(other_tasks, key=self.task_sorter, reverse=True)
+
+        # Reset cache if not extending
         if not extend_cache:
             self.cached_listed_tasks = {}
-        incomplete_tasks = [
-            task
-            for task in tasks
-            if (not smart_filter)
-            or not task.is_complete
-            and task.dependent_tasks_complete(tasks)
-        ]
-        start_index = (
-            0
-            if not extend_cache
-            else (max(-1, *[key for key in self.cached_listed_tasks]) + 1)
-        )
-        if len(incomplete_tasks) == 0:
-            if also_print:
-                print("You have no available tasks.")
-            return []
 
-        incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
         to_return = []
+        print_until = 0
 
-        max_digit_length = (len(incomplete_tasks) + start_index) / 10
+        # Determine terminal size
+        rows = int(
+            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
+                "utf-8"
+            )
+        )
+        columns = int(
+            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode(
+                "utf-8"
+            )
+        )
 
-        for idx, task in enumerate(incomplete_tasks):
-            true_idx = idx + start_index
-            space_padding = " " * (int(max_digit_length) - int(true_idx / 10))
+        # Calculate available rows after headers
+        header_lines = 0
+        if queued_tasks_sorted:
+            header_lines += 1  # For "Queued Tasks" header
+        if other_tasks_sorted:
+            header_lines += 1  # For "Tasks" header
+
+        available_rows = rows - header_lines - 2  # Additional buffer
+
+        # Function to format task line
+        def format_task_line(idx, task):
+            space_padding = " " * (int(max_digit_length) - int(idx / 10))
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if task.is_due_soon() else ""
-            to_return.append(
-                f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
-            )
-            # print(f"\n* {task.title} ({task.duration}min)")
-            self.cached_listed_tasks[true_idx] = task
+            return f"[{idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
 
-        if also_print:
-            [print(el) for el in to_return]
+        # Determine max digit length based on total tasks
+        total_tasks = len(queued_tasks_sorted) + len(other_tasks_sorted)
+        max_digit_length = math.ceil(math.log10(total_tasks + 1)) if total_tasks > 0 else 1
+
+        current_row = 0
+
+        # Display Queued Tasks
+        if queued_tasks_sorted:
+            if also_print:
+                print("\nQueued Tasks:")
+            for task in queued_tasks_sorted:
+                if current_row >= available_rows:
+                    break
+                formatted_line = format_task_line(current_row, task)
+                to_return.append(formatted_line)
+                if also_print:
+                    print(formatted_line)
+                self.cached_listed_tasks[current_row] = task
+                current_row += 1
+
+        # Display Other Tasks
+        if other_tasks_sorted:
+            if queued_tasks_sorted and also_print:
+                print("\nTasks:")
+            for task in other_tasks_sorted:
+                if current_row >= available_rows:
+                    break
+                formatted_line = format_task_line(current_row, task)
+                to_return.append(formatted_line)
+                if also_print:
+                    print(formatted_line)
+                self.cached_listed_tasks[current_row] = task
+                current_row += 1
+
+        if not to_return and also_print:
+            print("You have no available tasks.")
+
         return to_return
 
     def _is_number(self, num_string):
@@ -681,7 +728,6 @@ class App:
             chosen_task = remaining_tasks[0]
             if not chosen_task:
                 return
-            seen_tasks.add(chosen_task)
             self.list_all_tasks([chosen_task], smart_filter=False)
             new_stress = self.get_numerical_prompt(
                 "Enter new stress level for task: ", also_accept=["x", ""]
@@ -706,37 +752,102 @@ class App:
     def paged_task_list(self):
         self.reset_screen()
         velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
-        velicocity_percentage_str = "{:.2f}".format(velocity_percentage)
-        list_and_velocity_string = self.get_list_name_text() + f" (velocity: {velicocity_percentage_str}%/wk)"
+        velocity_percentage_str = "{:.2f}".format(velocity_percentage)
+        list_and_velocity_string = self.get_list_name_text() + f" (velocity: {velocity_percentage_str}%/wk)"
         print(list_and_velocity_string)
+        
+        # Get terminal size
         rows = int(
-            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
-                "utf-8"
-            )
+            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode("utf-8")
         )
         columns = int(
-            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode(
-                "utf-8"
-            )
+            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode("utf-8")
         )
-        pos = [0, 0]
+        
+        # Adjust available rows by subtracting space taken by headers and buffers
         rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
         rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
         rows -= math.ceil(len(list_and_velocity_string) / columns) + 1
-        would_print_collection = self.list_all_tasks(also_print=False)
-        if self.should_do_refresh():
-            would_print_collection = [
-                "* Please refresh your tasks"
-            ] + would_print_collection
+        rows -= 4  # Additional buffer for headers and spacing
+        
+        # Separate Queued and Other Tasks
+        queued_tasks = [task for task in self.all_tasks if task.current_status == TaskState.QUEUED]
+        other_tasks = [
+            task for task in self.all_tasks
+            if task.current_status != TaskState.QUEUED and
+            (not task.is_complete and task.dependent_tasks_complete(self.all_tasks))
+        ]
+        
+        # Sort Tasks
+        queued_tasks_sorted = sorted(queued_tasks, key=self.task_sorter, reverse=True)
+        other_tasks_sorted = sorted(other_tasks, key=self.task_sorter, reverse=True)
+        
+        # Initialize variables for printing
+        to_print = []
+        current_row = 0
+        
+        # Function to format a task line
+        def format_task_line(idx, task):
+            space_padding = " " * (int(math.ceil(math.log10(len(self.all_tasks) + 1))) - len(str(idx)) + 1)
+            dependent_count = task.get_dependent_count(self.all_tasks)
+            due_soon_indicator = "⏰ " if task.is_due_soon() else ""
+            return f"[{idx}] {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
+        
+        # Add "Queued Tasks" Header if there are queued tasks
+        if queued_tasks_sorted:
+            to_print.append("\nQueued Tasks:")
+            current_row += 1
+            for idx, task in enumerate(queued_tasks_sorted, start=current_row):
+                if current_row >= rows:
+                    break
+                formatted_line = format_task_line(idx, task)
+                to_print.append(formatted_line)
+                self.cached_listed_tasks[idx] = task
+                current_row += 1
+        
+        # Add "Tasks" Header if there are other tasks
+        if other_tasks_sorted:
+            to_print.append("\nTasks:")
+            current_row += 1
+            for idx, task in enumerate(other_tasks_sorted, start=current_row):
+                if current_row >= rows:
+                    break
+                formatted_line = format_task_line(idx, task)
+                to_print.append(formatted_line)
+                self.cached_listed_tasks[idx] = task
+                current_row += 1
+        
+        # If there are no tasks to display
+        if not to_print:
+            to_print.append("You have no available tasks.")
+        
+        # Adjust task indices to ensure uniqueness
+        # This step ensures that indices are unique across both Queued and Other tasks
+        unique_idx = 0
+        updated_to_print = []
+        for line in to_print:
+            if line.startswith("["):
+                # Extract the original index
+                original_idx = int(line.split("]")[0][1:])
+                # Replace with unique_idx
+                new_line = f"[{unique_idx}] {line.split(']')[1].strip()}"
+                updated_to_print.append(new_line)
+                # Update the cached_listed_tasks with new index
+                task = self.cached_listed_tasks.pop(original_idx, None)
+                if task:
+                    self.cached_listed_tasks[unique_idx] = task
+                unique_idx += 1
+            else:
+                # For headers and messages
+                updated_to_print.append(line)
+        
+        # Ensure we don't exceed the available rows
+        updated_to_print = updated_to_print[:rows]
+        
+        # Print the tasks
+        for line in updated_to_print:
+            print(line)
 
-        print_until = 0
-        for idx, candidate in enumerate(would_print_collection):
-            new_y = pos[1] + math.ceil(len(candidate) / columns)
-            if new_y < rows:
-                pos[1] = new_y
-                print_until += 1
-        for to_print in would_print_collection[:print_until]:
-            print(to_print)
 
     def find_task_by_any_id(self, input_str: str) -> Optional[Task]:
         if self._is_number(input_str):
