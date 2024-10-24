@@ -1,13 +1,15 @@
+# procrastitask_app.py
+
 from configparser import ConfigParser, NoSectionError
+import os
 import json
 import math
-import os
 import subprocess
 import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime, timedelta
-from typing import Callable, List, Optional, TypeVar, Union
+from typing import Callable, List, Optional, TypeVar, Union, Dict
 import ast
 import logging
 
@@ -17,12 +19,13 @@ from procrastitask.dynamics.base_dynamic import BaseDynamic
 from procrastitask.task import Task, TaskState
 from procrastitask.task_collection import TaskCollection
 
+EDITOR = os.environ.get("EDITOR", "vim")  # Default editor
 
-EDITOR = os.environ.get("EDITOR", "vim")  # that easy!
-
-log = logging.getLogger()
+# Configure logging
+log = logging.getLogger(__name__)
 log.setLevel("DEBUG")
-logging.basicConfig(filename="log.txt")
+logging.basicConfig(filename="log.txt", level=logging.DEBUG, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def rlinput(prefill: str = "", prompt="Edit:", multiprompt: Optional[dict] = None) -> List[str]:
@@ -33,17 +36,16 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: Optional[dict] = Non
         prompt = final_str[:-1]
     initial_message = bytes(
         str(prompt) + str(prefill), encoding="utf-8"
-    )  # if you want to set up the file somehow
+    )  # Initial content for the editor
 
     with tempfile.NamedTemporaryFile(suffix=".tmp") as tf:
         tf.write(initial_message)
         tf.flush()
         call([EDITOR, "+set backupcopy=yes", tf.name])
 
-        # do the parsing with `tf` using regular File operations.
-        # for instance:
+        # Read the edited content
         tf.seek(0)
-        edited_message = str(tf.read().decode())
+        edited_message = tf.read().decode()
 
         to_return = []
 
@@ -52,157 +54,199 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: Optional[dict] = Non
             for idx, (key, val) in enumerate(multiprompt_items):
                 first_part = edited_message.split(key)[1]
                 next_part_idx = idx + 1
-                if len(multiprompt_items) >= next_part_idx + 1:
-                    first_part = first_part.split(multiprompt_items[next_part_idx][0])[
-                        0
-                    ]
-                formatted = first_part[:-1]
+                if len(multiprompt_items) > next_part_idx:
+                    first_part = first_part.split(multiprompt_items[next_part_idx][0])[0]
+                formatted = first_part.strip()
                 formatted = None if formatted == "None" else formatted
                 to_return.append(formatted)
         else:
-            splitted = str(edited_message).split(prompt)
+            splitted = edited_message.split(prompt)
             if len(splitted) == 2:
-                return [splitted[1][:-3]]
+                return [splitted[1].strip()]
         return to_return
+
+
+class TaskManager:
+    """
+    Handles all task-related operations including loading, saving, adding, editing, deleting, and querying tasks.
+    """
+
+    def __init__(self, tasks_file: str, list_config_file: str):
+        self.tasks_file = tasks_file
+        self.list_config_file = list_config_file
+        self.all_tasks: List[Task] = []
+        self.filtered_tasks_to_resave: List[Task] = []
+        self.selected_task_lists: List[str] = ["default"]
+        self.task_lists: List[str] = []
+        self.load_list_config()
+        self.load_tasks()
+
+    def load_list_config(self):
+        try:
+            with open(self.list_config_file, "r") as lists:
+                task_lists = json.load(lists)["lists"]
+                self.task_lists = [el["name"] for el in task_lists]
+                log.info(f"Loaded task lists: {self.task_lists}")
+        except Exception as e:
+            log.error(f"Failed to load list config: {e}")
+            print("Config error, check formatting of list_config.json")
+
+    def load_tasks(self):
+        try:
+            with open(self.tasks_file, "r") as db:
+                json_tasks = json.load(db)
+                self.all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
+                log.debug(f"Loaded {len(self.all_tasks)} tasks from {self.tasks_file}")
+        except FileNotFoundError:
+            log.warning(f"Tasks file not found at {self.tasks_file}. Starting with an empty task list.")
+            self.all_tasks = []
+        except json.JSONDecodeError as e:
+            log.error(f"JSON decode error: {e}")
+            print("Error: Corrupted tasks file. Unable to parse tasks.")
+            self.all_tasks = []
+        except Exception as e:
+            log.error(f"Unexpected error while loading tasks: {e}")
+            print(f"Error: {e}")
+            self.all_tasks = []
+
+    def save_tasks(self):
+        try:
+            with open(self.tasks_file, "w") as db:
+                task_json_dicts = [task.to_dict() for task in self.all_tasks + self.filtered_tasks_to_resave]
+                json.dump(task_json_dicts, db, indent=4)
+                log.info(f"Saved {len(task_json_dicts)} tasks to {self.tasks_file}")
+        except Exception as e:
+            log.error(f"Failed to save tasks: {e}")
+            print(f"Failed to save tasks: {e}")
+            sleep(5)
+
+    def add_task(self, task: Task):
+        self.all_tasks.append(task)
+        log.info(f"Added task: {task.title}")
+        self.save_tasks()
+
+    def edit_task(self, task_id: str, **kwargs):
+        task = self.find_task_by_id(task_id)
+        if not task:
+            print("Task not found.")
+            return
+        for key, value in kwargs.items():
+            setattr(task, key, value)
+        log.info(f"Edited task: {task.title}")
+        self.save_tasks()
+
+    def delete_task(self, task_id: str):
+        task = self.find_task_by_id(task_id)
+        if task:
+            self.all_tasks.remove(task)
+            log.info(f"Deleted task: {task.title}")
+            self.save_tasks()
+        else:
+            print("Task not found.")
+
+    def find_task_by_id(self, task_id: str) -> Optional[Task]:
+        return next((task for task in self.all_tasks if task.identifier == task_id), None)
+
+    def filter_tasks(self, selected_lists: List[str]):
+        self.selected_task_lists = selected_lists
+        self.all_filtered_tasks = [
+            task for task in self.all_tasks
+            if task.list_name in self.selected_task_lists or "all" in self.selected_task_lists
+        ]
+        self.filtered_tasks_to_resave = [
+            task for task in self.all_tasks
+            if task.list_name not in self.selected_task_lists and "all" not in self.selected_task_lists
+        ]
+        log.debug(f"Filtered tasks based on selected lists: {selected_lists}")
+
+    def should_do_refresh(self) -> bool:
+        incomplete_tasks_dates = [
+            task.last_refreshed for task in self.all_filtered_tasks if not task.is_complete
+        ]
+        if not incomplete_tasks_dates:
+            return False
+        min_refreshed = min(incomplete_tasks_dates)
+        return datetime.now() - min_refreshed > timedelta(weeks=1)
 
 
 class App:
     def __init__(self):
-        self.filtered_tasks_to_resave = []
-        self.selected_task_list_name = ["default"]
-        self.task_lists = []
-        self.all_tasks = []
-        self.cached_listed_tasks = {}
         self.config = self.config_loader()
+        self.task_manager = TaskManager(
+            tasks_file=self.get_db_location(),
+            list_config_file=self.get_list_config_path()
+        )
+        self.cached_listed_tasks: Dict[int, Task] = {}
         self.reset_screen()
 
-    TASKS_FILE_NAME = "tasks.json"
+    CONFIG_FILE_NAME = "config.ini"
 
     def config_loader(self) -> dict:
         config = {}
         try:
             Config = ConfigParser()
             Config.read(self.get_config_path())
-            config = dict(Config.items("taks_config"))
+            config = dict(Config.items("task_config"))
+            log.info("Configuration loaded successfully.")
         except NoSectionError:
-            print("Config error, check formatting")
+            log.error("Config error, check formatting of config.ini")
+            print("Config error, check formatting of config.ini")
         return config
-
-    def load_list_config(self):
-        dir = self.config.get("db_location", self.get_current_dir() + "/../..")
-        with open(dir + "/list_config.json", "r") as lists:
-            task_lists = json.loads(lists.read())["lists"]
-            self.task_lists = [el["name"] for el in task_lists]
-            return self.task_lists
-
-    def get_db_location(self):
-        dir = self.config.get("db_location", self.get_current_dir() + "/../..")
-        return dir + "/" + self.TASKS_FILE_NAME
-
-    def prompt_for_task_list_selection(self):
-        self.reset_screen()
-        task_lists_for_prompt = ["all"] + self.task_lists
-        for list_idx, list_name in enumerate(task_lists_for_prompt):
-            print(f"[{list_idx}] {list_name}")
-        chosen_lists_idx = self.get_input_with_validation_mapper(
-            prompt="Select your task list: ",
-            validator_mapper=lambda s: [int(val) for val in s.split(",")],
-        )
-        self.reset_screen()
-        return [
-            task_lists_for_prompt[chosen_list_idx]
-            for chosen_list_idx in chosen_lists_idx
-        ]
-
-    def get_raw_db_file(self):
-        with open(self.get_db_location(), "r") as db:
-            return db.read()
-
-    def load(self, default_list: Optional[Union[List, str]] = None):
-        self.load_list_config()
-        if self.task_lists:
-            if default_list:
-                if type(default_list) is list:
-                    self.selected_task_list_name = default_list
-                else:
-                    self.selected_task_list_name = [default_list]
-            else:
-                self.selected_task_list_name = self.prompt_for_task_list_selection()
-            log.info(f"List set to: {self.selected_task_list_name}")
-        try:
-            json_tasks = json.loads(self.get_raw_db_file())
-            log.debug(f"Loaded {len(json_tasks)} from file {self.get_db_location()}")
-            actual_all_tasks = [Task.from_dict(j_task) for j_task in json_tasks]
-            self.all_tasks = [
-                t
-                for t in actual_all_tasks
-                if (t.list_name in self.selected_task_list_name)
-                or "all" in self.selected_task_list_name
-            ]
-            self.filtered_tasks_to_resave = [
-                t
-                for t in actual_all_tasks
-                if (t.list_name not in self.selected_task_list_name)
-                and "all" not in self.selected_task_list_name
-            ]
-
-        except Exception as e:
-            log.error(e)
-            print(f"Error: {e}")
-            self.all_tasks = []
-        self.task_collection = TaskCollection(filtered_tasks=self.all_tasks, unfiltered_tasks=self.all_tasks + self.filtered_tasks_to_resave)
-
-    def save(self):
-        backed_up_content = []
-        try:
-            with open(self.get_db_location(), "r") as existing_db:
-                backed_up_content = existing_db.read()
-        except FileNotFoundError:
-            log.debug(f"Couldn't find an existing DB at location {self.get_db_location()}. One will be created.")
-        with open(self.get_db_location(), "w") as db:
-            try:
-
-                def sorter(t: Task):
-                    return (t.is_complete, t.title)
-
-                sorted_tasks = sorted(
-                    self.all_tasks + self.filtered_tasks_to_resave, key=sorter
-                )
-                task_json_dicts = [task.to_dict() for task in sorted_tasks]
-                json_str = json.dumps(task_json_dicts)
-                db.write(json_str)
-            except Exception as e:
-                print(f"Failed to save:{e}")
-                sleep(5)
-                db.write(backed_up_content)
-
-    CONFIG_FILE_NAME = "config.ini"
 
     def get_current_dir(self):
         return os.path.dirname(os.path.realpath(__file__))
 
     def get_config_path(self):
         dir_path = self.get_current_dir() + "/../.."
-        return dir_path + "/" + self.CONFIG_FILE_NAME
+        return os.path.join(dir_path, self.CONFIG_FILE_NAME)
 
-    def does_local_config_file_exist(self):
-        return os.path.isfile(self.get_config_path())
+    def get_list_config_path(self):
+        dir_path = self.config.get("db_location", self.get_current_dir() + "/../..")
+        return os.path.join(dir_path, "list_config.json")
 
-    def delete_task(self, task_title):
-        # print(f"Deleting title {task_title} from collection {self.all_tasks}")
-        self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
+    def get_db_location(self):
+        dir_path = self.config.get("db_location", self.get_current_dir() + "/../..")
+        return os.path.join(dir_path, "tasks.json")
 
-    def should_do_refresh(self):
-        incomplete_tasks_dates = [
-            task.last_refreshed for task in self.all_tasks if not task.is_complete
+    def prompt_for_task_list_selection(self) -> List[str]:
+        self.reset_screen()
+        task_lists_for_prompt = ["all"] + self.task_manager.task_lists
+        print("Select your task lists (comma-separated indices):")
+        for list_idx, list_name in enumerate(task_lists_for_prompt):
+            print(f"[{list_idx}] {list_name}")
+        chosen_indices = self.get_input_with_validation_mapper(
+            prompt="Enter indices: ",
+            validator_mapper=lambda s: [int(val.strip()) for val in s.split(",")],
+        )
+        selected_lists = [
+            task_lists_for_prompt[idx] for idx in chosen_indices if 0 <= idx < len(task_lists_for_prompt)
         ]
-        if not incomplete_tasks_dates:
-            return False
-        min_refreshed = min(incomplete_tasks_dates)
-        if datetime.now() - min_refreshed > timedelta(weeks=1):
-            return True
+        self.reset_screen()
+        log.info(f"Selected task lists: {selected_lists}")
+        return selected_lists
 
-    def get_date_prompt(self, prompt_text: str, input_func=None):
+    def load(self, default_lists: Optional[List[str]] = None):
+        if default_lists:
+            self.task_manager.filter_tasks(default_lists)
+        else:
+            selected_lists = self.prompt_for_task_list_selection()
+            self.task_manager.filter_tasks(selected_lists)
+        log.info(f"Loaded tasks with selected lists: {self.task_manager.selected_task_lists}")
+
+    def save(self):
+        self.task_manager.save_tasks()
+        print("Tasks saved successfully.")
+        log.info("Tasks saved successfully.")
+
+    def delete_task(self, task_id: str):
+        self.task_manager.delete_task(task_id)
+        print("Task deleted successfully.")
+        log.info(f"Task with ID {task_id} deleted.")
+
+    def should_do_refresh(self) -> bool:
+        return self.task_manager.should_do_refresh()
+
+    def get_date_prompt(self, prompt_text: str, input_func=None) -> Optional[datetime]:
         result = input_func(prompt_text) if input_func else input(prompt_text)
         try:
             return datetime.fromisoformat(result)
@@ -217,46 +261,44 @@ class App:
             day = int(parts[0])
             month = now.month
             if now.day > day:
-                month = month + 1
+                month += 1
             if now.month > month:
-                year = year + 1
-            return datetime(day=day, month=month, year=year, hour=9)
+                year += 1
+            return datetime(year=year, month=month, day=day, hour=9)
         if len(parts) == 2:
             year = now.year
             day = int(parts[0])
             month = int(parts[1])
             if now.month > month:
-                year = year + 1
-            return datetime(day=day, month=month, year=year, hour=9)
+                year += 1
+            return datetime(year=year, month=month, day=day, hour=9)
         if len(parts) == 3:
-            return datetime(day=parts[0], month=parts[1], year=parts[2], hour=9)
+            return datetime(year=int(parts[2]), month=int(parts[1]), day=int(parts[0]), hour=9)
+        return None
 
     def modify_cached_task_stress_by_offset(self, cached_idx: int, offset: int):
-        """
-        Change the stress of a task by an offset. This should apply to the rendered
-        task stress rather than the base in the case of dynamics.
-        """
-        found_task: Task = self.cached_listed_tasks[cached_idx]
+        found_task: Task = self.cached_listed_tasks.get(cached_idx)
+        if not found_task:
+            print("Invalid task index.")
+            return
         existing_stress = found_task.get_rendered_stress()
         new_stress = existing_stress + offset
         found_task.stress = new_stress
         found_task.update_last_refreshed()
-        print(
-            f"Updating task stress for {found_task} from {existing_stress} -> {new_stress}"
-        )
+        log.info(f"Updated task stress for '{found_task.title}' from {existing_stress} to {new_stress}")
+        print(f"Updated task stress for '{found_task.title}' from {existing_stress} to {new_stress}")
 
     def get_numerical_prompt(
-        self, prompt_text, also_accept=None, input_func=None, raise_exception=False
-    ):
+        self, prompt_text: str, also_accept: Optional[List[Union[str, int]]] = None,
+        input_func=None, raise_exception: bool = False
+    ) -> Union[float, str]:
         while True:
             try:
                 result = input_func(prompt_text) if input_func else input(prompt_text)
                 return float(result)
             except ValueError:
-                message = (
-                    f"\nBad input for prompt {prompt_text}: {result}. Try again.\n"
-                )
-                if result in (also_accept or []):
+                message = f"\nBad input for prompt '{prompt_text}': '{result}'. Try again.\n"
+                if also_accept and result in also_accept:
                     return result
                 if raise_exception:
                     raise ValueError(message)
@@ -269,7 +311,7 @@ class App:
         self,
         prompt: str,
         validator_mapper: Callable[[str], T] = lambda s: s,
-        raise_exception=False,
+        raise_exception: bool = False,
     ) -> T:
         while True:
             result = input(prompt)
@@ -277,7 +319,7 @@ class App:
                 mapped = validator_mapper(result)
                 return mapped
             except ValueError as e:
-                message = f"\nBad input for prompt {prompt}: {result}. {e}\n"
+                message = f"\nBad input for prompt '{prompt}': '{result}'. {e}\n"
                 if raise_exception:
                     raise ValueError(message)
                 print(message)
@@ -286,196 +328,163 @@ class App:
     @property
     def dependence_validator(self):
         def to_return_validator(dependent_on: str) -> List[str]:
-            dependence_pieces = dependent_on.split(",")
-            # Empty string yields ['']
-            if dependence_pieces == [""]:
+            dependence_pieces = [piece.strip() for piece in dependent_on.split(",") if piece.strip()]
+            if not dependence_pieces:
                 return []
             mapped_ids = []
             for potential_val in dependence_pieces:
-                mapped_to = None
-                # Is the given val an ID?
-                for task in self.all_tasks:
-                    if task.identifier == potential_val:
-                        mapped_to = potential_val
-                # If we didn't find a perfect match, try index
-                if mapped_to is None:
+                # Check if potential_val is a UUID
+                if self.task_manager.find_task_by_id(potential_val):
+                    mapped_ids.append(potential_val)
+                else:
                     try:
                         target_idx = int(potential_val)
-                        idx_looked_up_task = self.cached_listed_tasks.get(target_idx)
-                        if idx_looked_up_task:
-                            mapped_to = idx_looked_up_task.identifier
+                        task = self.cached_listed_tasks.get(target_idx)
+                        if task:
+                            mapped_ids.append(task.identifier)
+                        else:
+                            raise ValueError
                     except ValueError:
-                        pass
-
-                if mapped_to is not None:
-                    mapped_ids.append(mapped_to)
-                else:
-                    raise ValueError("Did not find corresponding task for that value")
+                        raise ValueError(f"Did not find corresponding task for value: {potential_val}")
             return mapped_ids
 
         return to_return_validator
 
     def edit_or_create_task(
-        self, task_to_edit: Optional[Task] = None, dependent_on=None
+        self, task_to_edit: Optional[Task] = None, dependent_on: Optional[List[str]] = None
     ) -> Task:
-        while True:
-            try:
-                title = task_to_edit.title if task_to_edit else ""
-                description = task_to_edit.description if task_to_edit else ""
-                due_date = task_to_edit.due_date if task_to_edit else ""
-                difficulty = task_to_edit.difficulty if task_to_edit else ""
-                stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
-                duration = task_to_edit.duration if task_to_edit else ""
-                dependent_on = (
-                    dependent_on
-                    if dependent_on
-                    else task_to_edit.dependent_on if task_to_edit else []
-                )
-                is_complete = task_to_edit.is_complete if task_to_edit else False
-                dynamic = (
-                    task_to_edit.stress_dynamic.to_text()
-                    if task_to_edit and task_to_edit.stress_dynamic
-                    else ""
-                )
-                creation_date = (
-                    task_to_edit.creation_date if task_to_edit else datetime.now()
-                )
-                cool_down = task_to_edit.cool_down if task_to_edit else ""
-                periodicity = task_to_edit.periodicity if task_to_edit else ""
-                task_list_name = (
-                    task_to_edit.list_name
-                    if task_to_edit
-                    else (
-                        self.selected_task_list_name[0]
-                        if (
-                            len(self.selected_task_list_name) == 1
-                            and "all" not in self.selected_task_list_name
-                        )
-                        else "default"
-                    )
-                )
-                (
-                    title,
-                    description,
-                    due_date,
-                    difficulty,
-                    stress,
-                    duration,
-                    dependent_on,
-                    is_complete,
-                    dynamic,
-                    creation_date,
-                    cool_down,
-                    periodicity,
-                    task_list_name,
-                ) = rlinput(
-                    multiprompt={
-                        "Title:": title,
-                        "Description:": description,
-                        "Due Date:": due_date,
-                        "Difficulty:": difficulty,
-                        "Stress:": stress,
-                        "Duration:": duration,
-                        "Dependent On:": dependent_on,
-                        "Is Complete:": is_complete,
-                        "Stress dynamic:": dynamic,
-                        "Creation Date:": creation_date,
-                        "Cool down:": cool_down,
-                        "Periodicity": periodicity,
-                        "Task List Name:": task_list_name,
-                    }
-                )
+        try:
+            title = task_to_edit.title if task_to_edit else ""
+            description = task_to_edit.description if task_to_edit else ""
+            due_date = task_to_edit.due_date.isoformat() if task_to_edit and task_to_edit.due_date else ""
+            difficulty = str(task_to_edit.difficulty) if task_to_edit else ""
+            stress = str(task_to_edit.get_rendered_stress()) if task_to_edit else ""
+            duration = str(task_to_edit.duration) if task_to_edit else ""
+            dependent_on = dependent_on if dependent_on else task_to_edit.dependent_on if task_to_edit else []
+            is_complete = "True" if task_to_edit.is_complete else "False" if task_to_edit else "False"
+            dynamic = task_to_edit.stress_dynamic.to_text() if task_to_edit and task_to_edit.stress_dynamic else ""
+            creation_date = task_to_edit.creation_date.isoformat() if task_to_edit else datetime.now().isoformat()
+            cool_down = task_to_edit.cool_down if task_to_edit else ""
+            periodicity = task_to_edit.periodicity if task_to_edit else ""
+            task_list_name = task_to_edit.list_name if task_to_edit else (
+                self.task_manager.selected_task_lists[0]
+                if len(self.task_manager.selected_task_lists) == 1 and "all" not in self.task_manager.selected_task_lists
+                else "default"
+            )
 
-                cool_down = self.interval_validator(cool_down)
+            multiprompt = {
+                "Title:": title,
+                "Description:": description,
+                "Due Date:": due_date,
+                "Difficulty:": difficulty,
+                "Stress:": stress,
+                "Duration:": duration,
+                "Dependent On (comma-separated IDs):": ", ".join(dependent_on),
+                "Is Complete (True/False):": is_complete,
+                "Stress dynamic:": dynamic,
+                "Creation Date:": creation_date,
+                "Cool down:": cool_down,
+                "Periodicity:": periodicity,
+                "Task List Name:": task_list_name,
+            }
 
-                periodicity = self.cron_validator(periodicity)
+            (
+                title,
+                description,
+                due_date,
+                difficulty,
+                stress,
+                duration,
+                dependent_on_str,
+                is_complete_str,
+                dynamic,
+                creation_date,
+                cool_down,
+                periodicity,
+                task_list_name,
+            ) = rlinput(multiprompt=multiprompt)
 
-                dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
-                dependent_on = [
-                    self.find_task_by_any_id(el).identifier
-                    for el in ast.literal_eval(dependent_on)
-                ]
+            cool_down = self.interval_validator(cool_down)
+            periodicity = self.cron_validator(periodicity)
+            dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
+            dependent_on = ast.literal_eval(dependent_on_str) if dependent_on_str else []
+            dependent_on = [
+                self.task_manager.find_task_by_id(el).identifier
+                for el in dependent_on
+                if self.task_manager.find_task_by_id(el)
+            ]
 
-                creation_date = (
-                    self.get_date_prompt(
-                        "Creation Date",
-                        input_func=lambda *args, **kwargs: creation_date,
-                    )
-                    if creation_date
-                    else None
-                )
+            creation_date = self.get_date_prompt(
+                "Creation Date (YYYY-MM-DDTHH:MM:SS): ",
+                input_func=lambda *args, **kwargs: creation_date,
+            ) if creation_date else None
 
-                due_date = (
-                    self.get_date_prompt(
-                        "Due Date",
-                        input_func=lambda *args, **kwargs: due_date,
-                    )
-                    if due_date
-                    else None
-                )
-                difficulty = self.get_numerical_prompt(
-                    "Difficulty",
-                    input_func=lambda *args, **kwargs: difficulty,
-                    raise_exception=True,
-                )
-                stress = self.get_numerical_prompt(
-                    "Stress",
-                    input_func=lambda *args, **kwargs: stress,
-                    raise_exception=True,
-                )
-                duration = self.get_numerical_prompt(
-                    "Duration",
-                    input_func=lambda *args, **kwargs: duration,
-                    raise_exception=True,
-                )
-                is_complete = is_complete != "False"
-                if task_to_edit:
-                    task_to_edit.title = title
-                    task_to_edit.description = description
-                    task_to_edit.dependent_on = dependent_on
-                    task_to_edit.duration = duration
-                    task_to_edit.difficulty = difficulty
+            due_date = self.get_date_prompt(
+                "Due Date (YYYY-MM-DDTHH:MM:SS): ",
+                input_func=lambda *args, **kwargs: due_date,
+            ) if due_date else None
 
-                    # Real quick... if they changed the stress,
-                    # update the last_refreshed date too
-                    if float(task_to_edit.get_rendered_stress()) != float(stress):
-                        task_to_edit.last_refreshed = datetime.now()
+            difficulty = self.get_numerical_prompt(
+                "Difficulty: ",
+                raise_exception=True,
+            )
 
-                    task_to_edit.stress = stress
-                    task_to_edit.is_complete = is_complete
-                    task_to_edit.stress_dynamic = dynamic
-                    task_to_edit.creation_date = creation_date
-                    task_to_edit.due_date = due_date
-                    task_to_edit.cool_down = cool_down
-                    task_to_edit.periodicity = periodicity
-                    task_to_edit.list_name = task_list_name
-                    return task_to_edit
+            stress = self.get_numerical_prompt(
+                "Stress: ",
+                raise_exception=True,
+            )
 
-                created_task = Task(
-                    title=title,
-                    description=description,
-                    duration=duration,
-                    stress=stress,
-                    difficulty=difficulty,
-                    due_date=due_date,
-                    dependent_on=dependent_on,
-                    stress_dynamic=dynamic,
-                    creation_date=creation_date,
-                    cool_down=cool_down,
-                    periodicity=periodicity,
-                    list_name=task_list_name,
-                )
-                return created_task
-            except ValueError as e:
+            duration = self.get_numerical_prompt(
+                "Duration (minutes): ",
+                raise_exception=True,
+            )
+
+            is_complete = is_complete_str.lower() == "true"
+
+            if task_to_edit:
+                task_to_edit.title = title
+                task_to_edit.description = description
+                task_to_edit.due_date = due_date
+                task_to_edit.difficulty = difficulty
+                task_to_edit.stress = stress
+                task_to_edit.duration = duration
+                task_to_edit.dependent_on = dependent_on
+                task_to_edit.is_complete = is_complete
+                task_to_edit.stress_dynamic = dynamic
+                task_to_edit.creation_date = creation_date
+                task_to_edit.cool_down = cool_down
+                task_to_edit.periodicity = periodicity
+                task_to_edit.list_name = task_list_name
+                log.info(f"Edited task: {task_to_edit.title}")
+                return task_to_edit
+
+            new_task = Task(
+                title=title,
+                description=description,
+                duration=int(duration),
+                stress=int(stress),
+                difficulty=int(difficulty),
+                due_date=due_date,
+                dependent_on=dependent_on,
+                stress_dynamic=dynamic,
+                creation_date=creation_date or datetime.now(),
+                cool_down=cool_down,
+                periodicity=periodicity,
+                list_name=task_list_name,
+            )
+            log.info(f"Created new task: {new_task.title}")
+            return new_task
+        except ValueError as e:
                 print(e)
                 sleep(5)
 
     def verbose_create_new_task(self):
-        return self.edit_or_create_task()
+        new_task = self.edit_or_create_task()
+        self.task_manager.add_task(new_task)
 
     @property
     def cron_validator(self):
-        def validator(val):
+        def validator(val: str) -> Optional[str]:
             if not val:
                 return None
             try:
@@ -483,205 +492,105 @@ class App:
                 cron.get_next(datetime)
                 return val
             except Exception as e:
-                print(e)
-                raise ValueError("Invalid cron")
-
+                log.error(f"Cron validation error: {e}")
+                raise ValueError("Invalid cron expression.")
         return validator
 
     @property
     def interval_validator(self):
-        def validator(val):
+        def validator(val: str) -> Optional[str]:
             if not val:
                 return None
             try:
                 Task.convert_cool_down_str_to_delta(val)
                 return val
             except Exception as e:
-                print(e)
-                raise ValueError("Invalid interval")
-
+                log.error(f"Interval validation error: {e}")
+                raise ValueError("Invalid interval format.")
         return validator
 
     def create_new_task(self):
-        task_title = input("Enter your task: ")
-        task_description = input("Enter description: ")
-        duration = self.get_numerical_prompt("Estimated duration (minutes): ")
-        stress_level = self.get_numerical_prompt("Stress level: ")
-        difficulty = self.get_numerical_prompt("Difficulty: ")
-        date = self.get_date_prompt("Due date:")
-        dependent_on = self.get_input_with_validation_mapper(
-            "Dependent on tasks: ", self.dependence_validator
-        )
-        dynamic = self.get_input_with_validation_mapper(
-            "Stress dynamic: ", lambda s: BaseDynamic.find_dynamic(s) if s else None
-        )
-        cool_down = self.get_input_with_validation_mapper(
-            "Cool down: ", self.interval_validator
-        )
-        periodicity = self.get_input_with_validation_mapper(
-            "Periodic cron: ", self.cron_validator
-        )
+        new_task = self.edit_or_create_task()
+        self.task_manager.add_task(new_task)
 
-        created_task = Task(
-            title=task_title,
-            description=task_description,
-            duration=duration,
-            stress=stress_level,
-            difficulty=difficulty,
-            due_date=date,
-            dependent_on=dependent_on,
-            stress_dynamic=dynamic,
-            cool_down=cool_down,
-            periodicity=periodicity,
-            list_name=(
-                self.selected_task_list_name[0]
-                if (
-                    "all" not in self.selected_task_list_name
-                    and len(self.selected_task_list_name) == 1
-                )
-                else "default"
-            ),
-        )
-        return created_task
-
-    def task_sorter(self, x: Task):
-        x_stress = x.get_rendered_stress()
-        if x.is_due_soon():
+    def task_sorter(self, task: Task) -> float:
+        x_stress = task.get_rendered_stress()
+        if task.is_due_soon():
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
 
-    def get_list_name_text(self):
-        return f"(list: {self.selected_task_list_name})"
+    def get_list_name_text(self) -> str:
+        return f"(list: {self.task_manager.selected_task_lists})"
 
     def print_list_name(self):
         print(self.get_list_name_text(), end="")
 
     def list_all_tasks(
         self,
-        task_list_override=None,
-        extend_cache=False,
-        also_print=True,
-        smart_filter=True,
-    ):
-        if also_print:
-            self.print_list_name()
-        tasks = task_list_override or self.all_tasks
+        task_list_override: Optional[List[Task]] = None,
+        extend_cache: bool = False,
+        also_print: bool = True,
+        smart_filter: bool = True,
+    ) -> List[str]:
+        if not extend_cache:
+            self.cached_listed_tasks = {}
+
+        tasks = task_list_override or self.task_manager.all_filtered_tasks
 
         # Separate queued tasks and other incomplete tasks
         queued_tasks = [task for task in tasks if task.current_status == TaskState.QUEUED]
         other_tasks = [
             task for task in tasks
-            if (task.current_status != TaskState.QUEUED) and
-               ((not smart_filter) or (not task.is_complete and task.dependent_tasks_complete(tasks)))
+            if task.current_status != TaskState.QUEUED and
+               (not smart_filter or (not task.is_complete and task.dependent_tasks_complete(tasks)))
         ]
 
         # Sort tasks
         queued_tasks_sorted = sorted(queued_tasks, key=self.task_sorter, reverse=True)
         other_tasks_sorted = sorted(other_tasks, key=self.task_sorter, reverse=True)
 
-        # Reset cache if not extending
-        if not extend_cache:
-            self.cached_listed_tasks = {}
+        # Combine tasks with headers
+        combined_tasks = []
+        if queued_tasks_sorted:
+            combined_tasks.append(("Queued Tasks", queued_tasks_sorted))
+        if other_tasks_sorted:
+            combined_tasks.append(("Tasks", other_tasks_sorted))
 
         to_return = []
-        print_until = 0
+        display_idx = 0
+        max_digit_length = math.ceil(math.log10(len(tasks) + 1)) if tasks else 1
 
-        # Determine terminal size
-        rows = int(
-            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode(
-                "utf-8"
-            )
-        )
-        columns = int(
-            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode(
-                "utf-8"
-            )
-        )
-
-        # Calculate available rows after headers
-        header_lines = 0
-        if queued_tasks_sorted:
-            header_lines += 1  # For "Queued Tasks" header
-        if other_tasks_sorted:
-            header_lines += 1  # For "Tasks" header
-
-        available_rows = rows - header_lines - 2  # Additional buffer
-
-        # Function to format task line
-        def format_task_line(idx, task):
-            space_padding = " " * (int(max_digit_length) - int(idx / 10))
-            dependent_count = task.get_dependent_count(tasks)
-            due_soon_indicator = "⏰ " if task.is_due_soon() else ""
-            return f"[{idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
-
-        # Determine max digit length based on total tasks
-        total_tasks = len(queued_tasks_sorted) + len(other_tasks_sorted)
-        max_digit_length = math.ceil(math.log10(total_tasks + 1)) if total_tasks > 0 else 1
-
-        current_row = 0
-
-        # Display Queued Tasks
-        if queued_tasks_sorted:
+        for header, task_group in combined_tasks:
             if also_print:
-                print("\nQueued Tasks:")
-            for task in queued_tasks_sorted:
-                if current_row >= available_rows:
+                print(f"\n{header}:")
+            for task in task_group:
+                if not extend_cache and display_idx >= self.get_available_rows():
                     break
-                formatted_line = format_task_line(current_row, task)
+                formatted_line = self.format_task_line(display_idx, task)
                 to_return.append(formatted_line)
                 if also_print:
                     print(formatted_line)
-                self.cached_listed_tasks[current_row] = task
-                current_row += 1
-
-        # Display Other Tasks
-        if other_tasks_sorted:
-            if queued_tasks_sorted and also_print:
-                print("\nTasks:")
-            for task in other_tasks_sorted:
-                if current_row >= available_rows:
-                    break
-                formatted_line = format_task_line(current_row, task)
-                to_return.append(formatted_line)
-                if also_print:
-                    print(formatted_line)
-                self.cached_listed_tasks[current_row] = task
-                current_row += 1
+                self.cached_listed_tasks[display_idx] = task
+                display_idx += 1
 
         if not to_return and also_print:
             print("You have no available tasks.")
 
         return to_return
 
-    def _is_number(self, num_string):
+    def format_task_line(self, idx: int, task: Task) -> str:
+        dependent_count = task.get_dependent_count(self.task_manager.all_tasks)
+        due_soon_indicator = "⏰ " if task.is_due_soon() else ""
+        dependent_info = f"(+{dependent_count}) " if dependent_count else ""
+        return f"[{idx}] {due_soon_indicator}{dependent_info}{task.headline()}"
+
+    def get_available_rows(self) -> int:
         try:
-            float(num_string)
-            return True
-        except ValueError:
-            return False
-
-    def _get_strictly_matching_tasks(self, available_time, available_energy):
-        candidates = []
-        for task in self.all_tasks:
-            if (task.duration <= available_time) and (
-                task.difficulty <= available_energy
-            ):
-                candidates.append(task)
-        candidates.sort(key=lambda t: t.stress)
-        return candidates
-
-    def _get_stretch_tasks(self, available_time, available_energy):
-        candidates = []
-        for task in self.all_tasks:
-            if (task.duration < available_time) and (
-                (
-                    task.difficulty <= (int(available_energy * 1.5))
-                    and (task.difficulty > available_energy)
-                )
-            ):
-                candidates.append(task)
-        candidates.sort(key=lambda t: t.stress)
-        return candidates
+            rows = int(subprocess.check_output(["tput", "lines"]).decode("utf-8"))
+            return rows - 5  # Subtracting lines for headers and buffers
+        except Exception as e:
+            log.error(f"Failed to get terminal rows: {e}")
+            return 20  # Default value
 
     def wizard(self):
         print("\nWelcome to the completion wizard.")
@@ -689,13 +598,12 @@ class App:
             "\nHow much time do you have (minutes)? "
         )
         available_energy = self.get_numerical_prompt("\nHow much energy do you have? ")
-        self.cached_listed_tasks = {}
         strict_candidates = self._get_strictly_matching_tasks(
             available_time, available_energy
         )
         stretch_candidates = self._get_stretch_tasks(available_time, available_energy)
         self.reset_screen()
-        if len(strict_candidates) > 0:
+        if strict_candidates:
             print("I recommend the following tasks:")
             self.list_all_tasks(strict_candidates)
             if stretch_candidates:
@@ -704,11 +612,124 @@ class App:
         else:
             if stretch_candidates:
                 print("\nYou have no perfect fits, but try these stretch tasks:")
-                self.list_all_tasks([stretch_candidates[:3]])
+                self.list_all_tasks(stretch_candidates[:3])
 
-    def find_task(self, task_title):
-        matches = [task for task in self.all_tasks if task.title == task_title]
-        return matches[0] if matches else None
+    def _get_strictly_matching_tasks(self, available_time: float, available_energy: float) -> List[Task]:
+        candidates = [
+            task for task in self.task_manager.all_filtered_tasks
+            if task.duration <= available_time and task.difficulty <= available_energy
+        ]
+        candidates.sort(key=lambda t: t.stress)
+        return candidates
+
+    def _get_stretch_tasks(self, available_time: float, available_energy: float) -> List[Task]:
+        stretch_energy = available_energy * 1.5
+        candidates = [
+            task for task in self.task_manager.all_filtered_tasks
+            if task.duration <= available_time and available_energy < task.difficulty <= stretch_energy
+        ]
+        candidates.sort(key=lambda t: t.stress)
+        return candidates
+
+    def find_task_by_any_id(self, input_str: str) -> Optional[Task]:
+        # First, try to interpret as an index
+        try:
+            idx = int(input_str)
+            return self.cached_listed_tasks.get(idx)
+        except ValueError:
+            pass
+
+        # Then, try to find by UUID
+        return self.task_manager.find_task_by_id(input_str)
+
+    CORE_COMMAND_PROMPT = (
+        "Enter your command (n = new task, ls = list, view <id> = view task, "
+        "x <id> = complete task, d <id> = delete task, s = save, r = refresh, "
+        "e <id> = edit task, cal <id> = calendar event, load = reload, "
+        "n <id> = create next task after <id>, p <id> = create previous task before <id>, "
+        "q <id> = queue task, exit = exit): "
+    )
+
+    def display_home(self):
+        print("\n")
+        command_input = input(self.CORE_COMMAND_PROMPT)
+        self.reset_screen()
+
+        if not command_input.strip():
+            return
+
+        parts = command_input.strip().split()
+        command = parts[0].lower()
+        args = parts[1:]
+
+        if command == "n":
+            new_task = self.edit_or_create_task()
+            self.task_manager.add_task(new_task)
+        elif command == "ls":
+            self.paged_task_list()
+        elif command == "view" and args:
+            task = self.find_task_by_any_id(args[0])
+            if task:
+                task.pretty_print(self.task_manager.all_tasks)
+            else:
+                print("Task not found.")
+        elif command == "x" and args:
+            task = self.find_task_by_any_id(args[0])
+            if task:
+                task.complete()
+                self.task_manager.save_tasks()
+                print("\nTask completed.")
+                log.info(f"Task completed: {task.title}")
+            else:
+                print("Task not found.")
+        elif command == "d" and args:
+            self.delete_task(args[0])
+        elif command == "s":
+            self.save()
+        elif command == "r":
+            self.refresh_stress_levels()
+        elif command == "e" and args:
+            task = self.find_task_by_any_id(args[0])
+            if task:
+                edited_task = self.edit_or_create_task(task)
+                self.task_manager.save_tasks()
+            else:
+                print("Task not found.")
+        elif command == "cal" and args:
+            task = self.find_task_by_any_id(args[0])
+            if task:
+                task.create_and_launch_ical_event()
+            else:
+                print("Task not found.")
+        elif command == "load":
+            self.load()
+            self.paged_task_list()
+        elif command == "n" and args:
+            found_task = self.find_task_by_any_id(args[0])
+            if found_task:
+                new_task = self.edit_or_create_task(dependent_on=[found_task.identifier])
+                self.task_manager.add_task(new_task)
+        elif command == "p" and args:
+            found_task = self.find_task_by_any_id(args[0])
+            if found_task:
+                new_task = self.edit_or_create_task()
+                self.task_manager.add_task(new_task)
+                found_task.dependent_on.append(new_task.identifier)
+                self.task_manager.save_tasks()
+        elif command == "q" and args:
+            task = self.find_task_by_any_id(args[0])
+            if task:
+                task.current_status = TaskState.QUEUED
+                self.task_manager.save_tasks()
+                print(f"Task '{task.title}' has been queued.")
+                log.info(f"Task queued: {task.title}")
+            else:
+                print("Task not found.")
+        elif command == "exit":
+            print("Exiting Procrastinator's Companion. Goodbye!")
+            exit()
+        else:
+            print("Unknown command.")
 
     def refresh_stress_levels(self):
         self.reset_screen()
@@ -717,28 +738,29 @@ class App:
             self.reset_screen()
             if not self.should_do_refresh():
                 print("List sufficiently refreshed.")
+                break
             remaining_tasks = [
-                t
-                for t in self.all_tasks
-                if t.is_complete == False and t not in seen_tasks
+                task for task in self.task_manager.all_filtered_tasks
+                if not task.is_complete and task.identifier not in seen_tasks
             ]
             if not remaining_tasks:
-                return
-            remaining_tasks.sort(key=lambda t: t.last_refreshed, reverse=False)
+                break
+            remaining_tasks.sort(key=lambda t: t.last_refreshed)
             chosen_task = remaining_tasks[0]
-            if not chosen_task:
-                return
+            seen_tasks.add(chosen_task.identifier)
             self.list_all_tasks([chosen_task], smart_filter=False)
             new_stress = self.get_numerical_prompt(
-                "Enter new stress level for task: ", also_accept=["x", ""]
+                "Enter new stress level for task (or 'x' to exit): ",
+                also_accept=["x", ""]
             )
-            if new_stress == "x":
-                return
-            found_task = self.find_task(chosen_task.title)
-            if found_task:
-                found_task.last_refreshed = datetime.now()
-                if new_stress != "":
-                    found_task.stress = new_stress
+            if isinstance(new_stress, str) and new_stress.lower() == "x":
+                break
+            if new_stress != "":
+                chosen_task.stress = new_stress
+                chosen_task.update_last_refreshed()
+                log.info(f"Stress level for task '{chosen_task.title}' updated to {new_stress}")
+                self.task_manager.save_tasks()
+                print(f"Stress level for task '{chosen_task.title}' updated.")
 
     def reset_screen(self):
         os.system("clear")
@@ -747,190 +769,52 @@ class App:
     WELCOME_MESSAGE = "\nWelcome to Procrastinator's Companion\n"
 
     def edit_task(self, task: Task):
-        return self.edit_or_create_task(task)
+        edited_task = self.edit_or_create_task(task)
+        self.task_manager.save_tasks()
 
     def paged_task_list(self):
         self.reset_screen()
-        velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
+        velocity_percentage = self.task_manager.task_collection.get_velocity(interval=timedelta(weeks=1))
         velocity_percentage_str = "{:.2f}".format(velocity_percentage)
         list_and_velocity_string = self.get_list_name_text() + f" (velocity: {velocity_percentage_str}%/wk)"
         print(list_and_velocity_string)
-        
+
         # Get terminal size
-        rows = int(
-            subprocess.run(["tput", "lines"], stdout=subprocess.PIPE).stdout.decode("utf-8")
-        )
-        columns = int(
-            subprocess.run(["tput", "cols"], stdout=subprocess.PIPE).stdout.decode("utf-8")
-        )
-        
-        # Adjust available rows by subtracting space taken by headers and buffers
-        rows -= math.ceil(len(self.WELCOME_MESSAGE) / columns) + 1
-        rows -= math.ceil(len(self.CORE_COMMAND_PROMPT) / columns) + 1
-        rows -= math.ceil(len(list_and_velocity_string) / columns) + 1
-        rows -= 4  # Additional buffer for headers and spacing
-        
-        # Separate Queued and Other Tasks
-        queued_tasks = [task for task in self.all_tasks if task.current_status == TaskState.QUEUED]
-        other_tasks = [
-            task for task in self.all_tasks
-            if task.current_status != TaskState.QUEUED and
-            (not task.is_complete and task.dependent_tasks_complete(self.all_tasks))
-        ]
-        
-        # Sort Tasks
-        queued_tasks_sorted = sorted(queued_tasks, key=self.task_sorter, reverse=True)
-        other_tasks_sorted = sorted(other_tasks, key=self.task_sorter, reverse=True)
-        
-        # Initialize variables for printing
+        rows = self.get_available_rows()
+        columns = int(subprocess.check_output(["tput", "cols"]).decode("utf-8"))
+
+        # Get all task lines without printing
+        would_print_collection = self.list_all_tasks(also_print=False)
+        if self.should_do_refresh():
+            would_print_collection = ["* Please refresh your tasks"] + would_print_collection
+
+        # Calculate how many lines can be printed
+        available_rows = rows
         to_print = []
-        current_row = 0
-        
-        # Function to format a task line
-        def format_task_line(idx, task):
-            space_padding = " " * (int(math.ceil(math.log10(len(self.all_tasks) + 1))) - len(str(idx)) + 1)
-            dependent_count = task.get_dependent_count(self.all_tasks)
-            due_soon_indicator = "⏰ " if task.is_due_soon() else ""
-            return f"[{idx}] {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
-        
-        # Add "Queued Tasks" Header if there are queued tasks
-        if queued_tasks_sorted:
-            to_print.append("\nQueued Tasks:")
-            current_row += 1
-            for idx, task in enumerate(queued_tasks_sorted, start=current_row):
-                if current_row >= rows:
-                    break
-                formatted_line = format_task_line(idx, task)
-                to_print.append(formatted_line)
-                self.cached_listed_tasks[idx] = task
-                current_row += 1
-        
-        # Add "Tasks" Header if there are other tasks
-        if other_tasks_sorted:
-            to_print.append("\nTasks:")
-            current_row += 1
-            for idx, task in enumerate(other_tasks_sorted, start=current_row):
-                if current_row >= rows:
-                    break
-                formatted_line = format_task_line(idx, task)
-                to_print.append(formatted_line)
-                self.cached_listed_tasks[idx] = task
-                current_row += 1
-        
-        # If there are no tasks to display
-        if not to_print:
-            to_print.append("You have no available tasks.")
-        
-        # Adjust task indices to ensure uniqueness
-        # This step ensures that indices are unique across both Queued and Other tasks
-        unique_idx = 0
-        updated_to_print = []
-        for line in to_print:
-            if line.startswith("["):
-                # Extract the original index
-                original_idx = int(line.split("]")[0][1:])
-                # Replace with unique_idx
-                new_line = f"[{unique_idx}] {line.split(']')[1].strip()}"
-                updated_to_print.append(new_line)
-                # Update the cached_listed_tasks with new index
-                task = self.cached_listed_tasks.pop(original_idx, None)
-                if task:
-                    self.cached_listed_tasks[unique_idx] = task
-                unique_idx += 1
-            else:
-                # For headers and messages
-                updated_to_print.append(line)
-        
-        # Ensure we don't exceed the available rows
-        updated_to_print = updated_to_print[:rows]
-        
+        for line in would_print_collection:
+            if len(to_print) >= available_rows:
+                break
+            to_print.append(line)
+
         # Print the tasks
-        for line in updated_to_print:
+        for line in to_print:
             print(line)
 
+    def find_task(self, task_title: str) -> Optional[Task]:
+        return next((task for task in self.task_manager.all_tasks if task.title == task_title), None)
 
-    def find_task_by_any_id(self, input_str: str) -> Optional[Task]:
-        if self._is_number(input_str):
-            selected_task = self.cached_listed_tasks.get(int(input_str))
-            if selected_task:
-                return selected_task
-        found_id_matches = [
-            task for task in self.all_tasks if task.identifier == input_str
-        ]
-        if found_id_matches:
-            return found_id_matches[0]
-        return None
+    def create_new_task(self):
+        new_task = self.edit_or_create_task()
+        self.task_manager.add_task(new_task)
 
-    CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4): "
-
-    def display_home(self):
-        print("\n")
-        command = input(self.CORE_COMMAND_PROMPT)
+    def run(self):
         self.reset_screen()
-
-        if len(command) == 0:
-            return
-        if command == "n":
-            self.all_tasks.append(self.create_new_task())
-        if command == "nn":
-            self.all_tasks.append(self.edit_or_create_task())
-        if command == "ls":
-            self.paged_task_list()
-            # self.list_all_tasks()
-        if self.find_task_by_any_id(command):
-            found_task = self.find_task_by_any_id(command)
-            found_task.pretty_print(self.all_tasks)
-        if command.startswith("x"):
-            index_val = command.split("x")[1]
-            selected_task = self.cached_listed_tasks.get(int(index_val))
-            selected_task.complete()
-            print("\nTask completed.")
-        if command.startswith("q"):
-            index_val = command.split("q")[1]
-            selected_task: Task = self.cached_listed_tasks.get(int(index_val))
-            selected_task.current_status = TaskState.QUEUED
-        if command.startswith("d"):
-            index_val = command.split("d")[1]
-            selected_task = self.cached_listed_tasks.get(int(index_val))
-            self.delete_task(selected_task.title)
-            print("\nTask deleted.")
-        if command == "exit":
-            exit()
-        if command.startswith("e"):
-            index_val = command[1:]
-            selected_task = self.find_task_by_any_id(index_val)
-            self.edit_task(selected_task)
-        if command == "s":
-            self.save()
-            print("Saved.")
-        if command == "load":
-            self.load()
-            self.paged_task_list()
-            #self.list_all_tasks()
-        if command == "w":
-            self.wizard()
-        if command == "r":
-            self.refresh_stress_levels()
-        if command.startswith("cal"):
-            found = self.find_task_by_any_id(command[3:])
-            found.create_and_launch_ical_event()
-        if command.startswith("n") and command not in ["n", "nn"]:
-            found = self.find_task_by_any_id(command[1:])
-            self.all_tasks.append(
-                self.edit_or_create_task(dependent_on=[found.identifier])
-            )
-        if command.startswith("p"):
-            found = self.find_task_by_any_id(command[1:])
-            new_task = self.edit_or_create_task()
-            self.all_tasks.append(new_task)
-            found.dependent_on = [*found.dependent_on, new_task.identifier]
-        return
+        self.paged_task_list()
+        while True:
+            self.display_home()
 
 
 if __name__ == "__main__":
-    os.system("clear")
     app = App()
     app.load()
-    app.paged_task_list()
-    while True:
-        app.display_home()
+    app.run()
