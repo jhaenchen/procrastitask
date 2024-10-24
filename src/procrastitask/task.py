@@ -133,6 +133,14 @@ class Task:
         if isinstance(other, Task):
             return self.__key() == other.__key()
         return NotImplemented
+    
+    @property
+    def latest_history(self) -> Optional[CompletionRecord]:
+        """
+        Get the latest history record for this task, based on date.
+        """
+        if self.history:
+            return max(self.history, key=lambda completion_rec: completion_rec.completed_at)
 
     def create_and_launch_ical_event(self):
         cal = icalendar.Calendar()
