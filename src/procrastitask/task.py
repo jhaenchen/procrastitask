@@ -101,6 +101,8 @@ class Task:
     def convert_cool_down_str_to_delta(cool_down: str) -> timedelta:
         if "min" in cool_down:
             return timedelta(minutes=int(cool_down.split("min")[0]))
+        if "hr" in cool_down:
+            return timedelta(hours=int(cool_down.split("hr")[0]))
         if "d" in cool_down:
             return timedelta(days=int(cool_down.split("d")[0]))
         if "w" in cool_down:
