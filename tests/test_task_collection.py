@@ -7,6 +7,27 @@ from freezegun import freeze_time
 
 
 class TestTaskCollection(unittest.TestCase):
+    def test_get_n_last_completed_returns_correct_records(self):
+        basic_task = Task("default title", "default descr", 10,10, 10)
+
+        first_task = Task.from_dict(basic_task.to_dict())
+        first_task.title = "first"
+        first_task.complete()
+
+        second_task = Task.from_dict(basic_task.to_dict())
+        second_task.title = "second"
+        second_task.complete()
+
+        third_task = Task.from_dict(basic_task.to_dict())
+        third_task.title = "third"
+
+        full_task_collection = [first_task, second_task, third_task]
+
+        collection = TaskCollection(filtered_tasks=full_task_collection, unfiltered_tasks=full_task_collection)
+        selected_task = collection.get_n_last_completed_tasks(how_many_tasks=1)[0]
+        # In this case, we asked for one, so we should get only the most recently completed task
+        self.assertEquals(second_task, selected_task)
+
     def test_get_recently_completed_returns_correct_records(self):
         basic_task = Task("default title", "default descr", 10,10, 10)
 

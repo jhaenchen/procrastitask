@@ -12,6 +12,14 @@ class TaskCollection:
         self.filtered_tasks = filtered_tasks
         self.unfiltered_tasks = unfiltered_tasks
 
+    def get_n_last_completed_tasks(self, how_many_tasks: int) -> List[Task]:
+        recently_completed: List[Task] = []
+        for task in self.filtered_tasks:
+            if task.history:
+                recently_completed.append(task)
+        recently_completed = sorted(recently_completed, key=lambda t: t.latest_history.completed_at, reverse=True)
+        return recently_completed[:how_many_tasks] if recently_completed else []
+
     def get_recently_completed_tasks(self, recent_is=timedelta(weeks=1), how_many_results=10):
         """
         Get a collection of recently completed task according to the current filtered set.
