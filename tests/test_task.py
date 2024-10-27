@@ -6,6 +6,26 @@ from freezegun import freeze_time
 
 
 class TestTask(unittest.TestCase):
+    def test_cool_down_properly_bounces_to_incomplete(self):
+        right_now = datetime.now()
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=10,
+            periodicity=None,
+            stress_dynamic=None,
+            creation_date=right_now,
+            last_refreshed=right_now,
+            cool_down="1hr"
+        )
+        with freeze_time(right_now):
+            created_task.complete()
+        self.assertTrue(created_task.is_complete)
+        with freeze_time(right_now + timedelta(hours=1.1)):
+            self.assertFalse(created_task.is_complete)
+
     def test_cron_stress_resets_at_interval_overlap(self):
         """
         When you have a repeating task with a stress dynamic, the stress should be based on the last 
