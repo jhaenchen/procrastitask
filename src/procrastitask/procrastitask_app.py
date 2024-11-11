@@ -252,7 +252,7 @@ class App:
         while True:
             try:
                 result = input_func(prompt_text) if input_func else input(prompt_text)
-                return int(result)
+                return float(result)
             except ValueError:
                 message = (
                     f"\nBad input for prompt {prompt_text}: {result}. Try again.\n"
@@ -439,7 +439,7 @@ class App:
 
                     # Real quick... if they changed the stress,
                     # update the last_refreshed date too
-                    if int(task_to_edit.get_rendered_stress()) != int(stress):
+                    if float(task_to_edit.get_rendered_stress()) != float(stress):
                         task_to_edit.last_refreshed = datetime.now()
 
                     task_to_edit.stress = stress
@@ -565,7 +565,11 @@ class App:
         smart_filter=True,
     ):
         if also_print:
-            self.print_list_name()
+            self.reset_screen()
+            velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
+            velicocity_percentage_str = "{:.2f}".format(velocity_percentage)
+            list_and_velocity_string = self.get_list_name_text() + f" (velocity: {velicocity_percentage_str}%/wk)"
+            print(list_and_velocity_string)
         tasks = task_list_override or self.all_tasks
         if not extend_cache:
             self.cached_listed_tasks = {}
@@ -595,7 +599,7 @@ class App:
             true_idx = idx + start_index
             space_padding = " " * (int(max_digit_length) - int(true_idx / 10))
             dependent_count = task.get_dependent_count(tasks)
-            due_soon_indicator = "⏰ " if task.is_due_soon() else ""
+            due_soon_indicator = "⏰ " if (task.is_due_soon() and not task.is_complete) else ""
             to_return.append(
                 f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
             )
@@ -608,7 +612,7 @@ class App:
 
     def _is_number(self, num_string):
         try:
-            int(num_string)
+            float(num_string)
             return True
         except ValueError:
             return False
@@ -809,6 +813,10 @@ class App:
             new_task = self.edit_or_create_task()
             self.all_tasks.append(new_task)
             found.dependent_on = [*found.dependent_on, new_task.identifier]
+        if command == "history":
+            recents = self.task_collection.get_recently_completed_tasks()
+            self.list_all_tasks(task_list_override=recents, smart_filter=False)
+
         return
 
 

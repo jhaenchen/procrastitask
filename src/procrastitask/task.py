@@ -52,6 +52,12 @@ class Task:
     periodicity: Optional[str] = None
     history: List[CompletionRecord] = field(default_factory=lambda: [])
 
+    def _format_num_as_int_if_possible(self, val):
+        floated = float(val)
+        if floated.is_integer():
+            return int(floated)
+        return floated
+
     @property
     def is_complete(self):
         log.debug(f"Evaluating is_complete for task named: {self.title}")
@@ -102,6 +108,8 @@ class Task:
     def convert_cool_down_str_to_delta(cool_down: str) -> timedelta:
         if "min" in cool_down:
             return timedelta(minutes=int(cool_down.split("min")[0]))
+        if "hr" in cool_down:
+            return timedelta(hours=int(cool_down.split("hr")[0]))
         if "d" in cool_down:
             return timedelta(days=int(cool_down.split("d")[0]))
         if "w" in cool_down:
@@ -134,6 +142,14 @@ class Task:
         if isinstance(other, Task):
             return self.__key() == other.__key()
         return NotImplemented
+    
+    @property
+    def latest_history(self) -> Optional[CompletionRecord]:
+        """
+        Get the latest history record for this task, based on date.
+        """
+        if self.history:
+            return max(self.history, key=lambda completion_rec: completion_rec.completed_at)
 
     def create_and_launch_ical_event(self):
         cal = icalendar.Calendar()
@@ -212,7 +228,7 @@ class Task:
         return not saw_incomplete
 
     def headline(self):
-        return f"{self.title} ({self.duration}min, stress: {int(self.get_rendered_stress())}, diff: {self.difficulty}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
+        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
 
     def complete(self):
         self.update_last_refreshed()
