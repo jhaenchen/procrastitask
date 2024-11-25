@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
+from datetime import datetime
 
 
 class BaseDynamic(ABC):
@@ -18,9 +19,18 @@ class BaseDynamic(ABC):
         raise NotImplementedError()
     
     @staticmethod
+    def get_cleaned_prefix(prefix: str) -> str:
+        return prefix.split("{")[0]
+    
+    @abstractmethod
+    def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
+        raise NotImplementedError()
+    
+    @staticmethod
     def get_all_dynamics() -> List[type["BaseDynamic"]]:
         from .linear_dynamic import LinearDynamic
         from .linear_with_peak_dynamic import LinearWithPeakDynamic
+        from .step_due_date_dynamic import StepDueDateDynamic
         all_dynamics = []
         for class_obj in BaseDynamic.__subclasses__():
             all_dynamics.append(class_obj)

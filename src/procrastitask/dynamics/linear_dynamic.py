@@ -22,7 +22,7 @@ class LinearDynamic(BaseDynamic):
         log.debug(f"Linear dynamic applied a bonus: {base_stress} + {offset}")
         return base_stress + offset
 
-    _full_prefix = "dynamic-linear-day."
+    _full_prefix = "dynamic-linear-day.{increase_per_x_days}"
 
     prefixes = [_full_prefix, "linear-day.", "dynamic-linear-day-"]
 
@@ -30,6 +30,7 @@ class LinearDynamic(BaseDynamic):
     def from_text(text: str) -> "LinearDynamic":
         parts = None
         for prefix in LinearDynamic.prefixes:
+            prefix = BaseDynamic.get_cleaned_prefix(prefix)
             if prefix in text:
                 parts = text.split(prefix)
         if parts is None:

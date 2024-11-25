@@ -16,7 +16,7 @@ class LinearWithPeakDynamic(BaseDynamic):
         offset = (datetime.now() - creation_date).days / self.interval
         return min(base_stress + offset, self.peak)
 
-    _full_prefix = "dynamic-linear-day-peaked."
+    _full_prefix = "dynamic-linear-day-peaked.{increase_per_x_days}.{max_stress}"
 
     prefixes = [_full_prefix, "linear-day-peaked."]
 
@@ -24,6 +24,7 @@ class LinearWithPeakDynamic(BaseDynamic):
     def from_text(text: str) -> "LinearWithPeakDynamic":
         interval, peak = None, None
         for prefix in LinearWithPeakDynamic.prefixes:
+            prefix = BaseDynamic.get_cleaned_prefix(prefix)
             if prefix in text:
                 interval, peak = text.split(prefix)[1].split("-")
         if None in [interval, peak]:

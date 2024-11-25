@@ -9,8 +9,7 @@ from typing import List, TypedDict, Optional
 import uuid
 import icalendar
 import croniter
-
-from procrastitask.dynamics.base_dynamic import BaseDynamic
+from .dynamics.base_dynamic import BaseDynamic
 
 log = logging.getLogger()
 

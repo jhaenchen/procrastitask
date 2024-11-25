@@ -84,7 +84,7 @@ class App:
         try:
             Config = ConfigParser()
             Config.read(self.get_config_path())
-            config = dict(Config.items("taks_config"))
+            config = dict(Config.items("task_config"))
         except NoSectionError:
             print("Config error, check formatting")
         return config
