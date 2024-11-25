@@ -83,9 +83,13 @@ class Task:
                 buffer = interval * .10
                 reset_at = next_time_to_complete - buffer
 
-                if self.last_refreshed < previous_time_to_complete:
+                if self.last_refreshed < (previous_time_to_complete - buffer):
                     # We missed a chance, bump it to incomplete
                     return False
+
+                if self.last_refreshed >= reset_at:
+                    # Completed within the buffer period
+                    return True
 
                 if datetime.now() > reset_at:
                     return False
