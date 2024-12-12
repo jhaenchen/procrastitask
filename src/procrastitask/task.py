@@ -130,7 +130,7 @@ class Task:
         if self.periodicity:
             cron = croniter.croniter(self.periodicity, datetime.now())
             base_stress_date = cron.get_prev(datetime)
-        return self.stress_dynamic.apply(base_stress_date, self.stress)
+        return self.stress_dynamic.apply(base_stress_date, self.stress, self)
 
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()

@@ -17,7 +17,7 @@ class LinearDynamic(BaseDynamic):
     # How often should the stress increase by one
     interval: float
 
-    def apply(self, last_updated_date: datetime, base_stress: int) -> float:
+    def apply(self, last_updated_date: datetime, base_stress: int, task) -> float:
         offset = (datetime.now() - last_updated_date).days / self.interval
         log.debug(f"Linear dynamic applied a bonus: {base_stress} + {offset}")
         return base_stress + offset

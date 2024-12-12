@@ -12,7 +12,7 @@ class LinearWithPeakDynamic(BaseDynamic):
     interval: float
     peak: int
 
-    def apply(self, creation_date: datetime, base_stress: int) -> float:
+    def apply(self, creation_date: datetime, base_stress: int, task) -> float:
         offset = (datetime.now() - creation_date).days / self.interval
         return min(base_stress + offset, self.peak)
 
