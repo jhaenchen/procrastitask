@@ -191,7 +191,17 @@ class App:
 
     def delete_task(self, task_title):
         # print(f"Deleting title {task_title} from collection {self.all_tasks}")
+        len_before = len(self.all_tasks)
         self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
+        if len_before == len(self.all_tasks):
+            raise ValueError(f"I couldn't find the task with title: {task_title}")
+
+    def delete_task_by_idx(self, task_idx: int):
+        selected_task = self.cached_listed_tasks.get(int(task_idx))
+        if not selected_task:
+            raise ValueError(f"That's not a valid idx: {task_idx}")
+        self.delete_task(selected_task.title)
+        print(f"\nTask deleted: {selected_task.title}")
 
     def should_do_refresh(self):
         incomplete_tasks_dates = [
