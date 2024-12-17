@@ -573,6 +573,7 @@ class App:
         extend_cache=False,
         also_print=True,
         smart_filter=True,
+        status_filter=None
     ):
         if also_print:
             self.reset_screen()
@@ -589,6 +590,7 @@ class App:
             if (not smart_filter)
             or not task.is_complete
             and task.dependent_tasks_complete(tasks)
+            and (status_filter is None or task.status == status_filter)
         ]
         start_index = (
             0
@@ -764,7 +766,7 @@ class App:
             return found_id_matches[0]
         return None
 
-    CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4): "
+    CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4, q = list in progress, q4 = move to next state 4): "
 
     def display_home(self):
         print("\n")
@@ -826,6 +828,13 @@ class App:
         if command == "history":
             recents = self.task_collection.get_recently_completed_tasks()
             self.list_all_tasks(task_list_override=recents, smart_filter=False)
+        if command == "q":
+            self.list_all_tasks(status_filter="IN_PROGRESS")
+        elif command.startswith("q"):
+            index_val = command.split("q")[1]
+            selected_task = self.cached_listed_tasks.get(int(index_val))
+            selected_task.status = "IN_PROGRESS"
+            print("\nTask moved to next state.")
 
         return
 

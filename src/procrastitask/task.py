@@ -50,6 +50,7 @@ class Task:
     cool_down: Optional[str] = None
     periodicity: Optional[str] = None
     history: List[CompletionRecord] = field(default_factory=lambda: [])
+    status: str = "INCOMPLETE"  # P44a1
 
     def _format_num_as_int_if_possible(self, val):
         floated = float(val)
@@ -97,6 +98,8 @@ class Task:
         
         result = render_logic()
         self._is_complete = result
+        if result and self.status == "COMPLETE":
+            self.status = "INCOMPLETE"
         return self._is_complete
 
     @is_complete.setter
@@ -236,6 +239,13 @@ class Task:
     def complete(self):
         self.update_last_refreshed()
         self.is_complete = True
+        self.status = "COMPLETE"  # Pcda9
+
+    def move_to_next_state(self):  # P4fd1
+        if self.status == "INCOMPLETE":
+            self.status = "IN_PROGRESS"
+        elif self.status == "IN_PROGRESS":
+            self.status = "COMPLETE"
 
     @staticmethod
     def from_dict(incoming_dict):
@@ -266,7 +276,8 @@ class Task:
             list_name=incoming_dict.get("list_name", "default"),
             cool_down=incoming_dict.get("cool_down"),
             periodicity=incoming_dict.get("periodicity"),
-            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])]
+            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])],
+            status=incoming_dict.get("status", "INCOMPLETE")  # P7793
         )
 
     def to_dict(self):
@@ -288,5 +299,6 @@ class Task:
             "list_name": self.list_name,
             "cool_down": self.cool_down,
             "periodicity": self.periodicity,
-            "history": [completion.to_dict() for completion in self.history]
+            "history": [completion.to_dict() for completion in self.history],
+            "status": self.status  # P7793
         }
