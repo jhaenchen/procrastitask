@@ -250,7 +250,7 @@ class App:
                 year = year + 1
             return datetime(day=day, month=month, year=year, hour=9)
         if len(parts) == 3:
-            return datetime(day=parts[0], month=parts[1], year=parts[2], hour=9)
+            return datetime(day=int(parts[0]), month=int(parts[1]), year=int(parts[2]), hour=9)
 
     def modify_cached_task_stress_by_offset(self, cached_idx: int, offset: int):
         """
