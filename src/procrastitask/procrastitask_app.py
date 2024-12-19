@@ -204,6 +204,7 @@ class App:
         # Remove the deleted task's identifier from other tasks' dependent_on lists
         for task in self.all_tasks:
             task.dependent_on = [dep for dep in task.dependent_on if dep != specified_task.identifier]
+        log.info(f"Task deleted: {task_title}")
 
     def delete_task_by_idx(self, task_idx: int):
         selected_task = self.cached_listed_tasks.get(int(task_idx))
@@ -211,6 +212,7 @@ class App:
             raise ValueError(f"That's not a valid idx: {task_idx}")
         self.delete_task(selected_task.title)
         print(f"\nTask deleted: {selected_task.title}")
+        log.info(f"Task deleted by index: {selected_task.title}")
 
     def should_do_refresh(self):
         incomplete_tasks_dates = [
@@ -491,7 +493,9 @@ class App:
                 sleep(5)
 
     def verbose_create_new_task(self):
-        return self.edit_or_create_task()
+        task = self.edit_or_create_task()
+        log.info(f"Task created: {task.title}")
+        return task
 
     @property
     def cron_validator(self):
@@ -562,6 +566,7 @@ class App:
                 else "default"
             ),
         )
+        log.info(f"Task created: {created_task.title}")
         return created_task
 
     def task_sorter(self, x: Task):
