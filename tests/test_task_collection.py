@@ -26,7 +26,7 @@ class TestTaskCollection(unittest.TestCase):
         collection = TaskCollection(filtered_tasks=full_task_collection, unfiltered_tasks=full_task_collection)
         selected_task = collection.get_n_last_completed_tasks(how_many_tasks=1)[0]
         # In this case, we asked for one, so we should get only the most recently completed task
-        self.assertEquals(second_task, selected_task)
+        self.assertEqual(second_task, selected_task)
 
     def test_get_recently_completed_returns_correct_records(self):
         basic_task = Task("default title", "default descr", 10,10, 10)
@@ -47,7 +47,7 @@ class TestTaskCollection(unittest.TestCase):
         collection = TaskCollection(filtered_tasks=full_task_collection, unfiltered_tasks=full_task_collection)
         selected_task = collection.get_recently_completed_tasks(how_many_results=1)[0]
         # In this case, we asked for one, so we should get only the most recently completed task
-        self.assertEquals(second_task, selected_task)
+        self.assertEqual(second_task, selected_task)
 
     def test_get_recently_completed_handles_none_complete_within_range(self):
         basic_task = Task("default title", "default descr", 10,10, 10)
@@ -71,7 +71,7 @@ class TestTaskCollection(unittest.TestCase):
         collection = TaskCollection(filtered_tasks=full_task_collection, unfiltered_tasks=full_task_collection)
         selected_tasks = collection.get_recently_completed_tasks(how_many_results=1, recent_is=searching_within)
         # Two incomplete, one too long ago
-        self.assertEquals([], selected_tasks)
+        self.assertEqual([], selected_tasks)
 
     def test_cron_stress_resets_at_interval_overlap(self):
         """
