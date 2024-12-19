@@ -102,6 +102,7 @@ class Task:
     @is_complete.setter
     def is_complete(self, val):
         if val is not None:
+            log.info(f"Setting is_complete for task named: {self.title} to {val}")
             self._is_complete = val
             self.update_last_refreshed()
             if val == True:
@@ -239,6 +240,7 @@ class Task:
     def complete(self):
         self.update_last_refreshed()
         self.is_complete = True
+        log.info(f"Completing task: {self.title}.")
 
     @staticmethod
     def from_dict(incoming_dict):
