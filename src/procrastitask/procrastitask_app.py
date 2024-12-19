@@ -190,11 +190,20 @@ class App:
         return os.path.isfile(self.get_config_path())
 
     def delete_task(self, task_title):
-        # print(f"Deleting title {task_title} from collection {self.all_tasks}")
         len_before = len(self.all_tasks)
+        specified_task = [task for task in self.all_tasks if task.title == task_title]
+        if not specified_task:
+            raise ValueError(f"I couldn't find the task with title: {task_title}")
+        elif len(specified_task) > 1:
+            raise ValueError(f"I found more than one task with title: {task_title}: {specified_task}")
+        else:
+            specified_task = specified_task[0]
         self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
         if len_before == len(self.all_tasks):
             raise ValueError(f"I couldn't find the task with title: {task_title}")
+        # Remove the deleted task's identifier from other tasks' dependent_on lists
+        for task in self.all_tasks:
+            task.dependent_on = [dep for dep in task.dependent_on if dep != specified_task.identifier]
 
     def delete_task_by_idx(self, task_idx: int):
         selected_task = self.cached_listed_tasks.get(int(task_idx))

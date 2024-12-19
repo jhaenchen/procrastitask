@@ -225,8 +225,11 @@ class Task:
     def dependent_tasks_complete(self, all_tasks: List["Task"]) -> bool:
         saw_incomplete = False
         for task_id in self.dependent_on:
-            found = [t for t in all_tasks if t.identifier == task_id][0]
-            if not found._is_complete:
+            found = [t for t in all_tasks if t.identifier == task_id]
+            if not found:
+                log.warning(f"Dependent task with id {task_id} not found.")
+                continue
+            if not found[0]._is_complete:
                 saw_incomplete = True
         return not saw_incomplete
 
