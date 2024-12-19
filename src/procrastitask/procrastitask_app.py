@@ -212,7 +212,6 @@ class App:
             raise ValueError(f"That's not a valid idx: {task_idx}")
         self.delete_task(selected_task.title)
         print(f"\nTask deleted: {selected_task.title}")
-        log.info(f"Task deleted by index: {selected_task.title}")
 
     def should_do_refresh(self):
         incomplete_tasks_dates = [
