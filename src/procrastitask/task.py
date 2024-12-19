@@ -119,7 +119,7 @@ class Task:
         if "w" in cool_down:
             return timedelta(weeks=int(cool_down.split("w")[0]))
         if "m" in cool_down:
-            return timedelta(weeks=int(cool_down.split("m")[0]) * 4)
+            return timedelta(weeks=int(cool_down.split("m")[0]) * 4.345)
         raise ValueError(f"The set cool down str is not parseable: {cool_down}")
 
     def get_rendered_stress(self):
