@@ -104,7 +104,7 @@ class Task:
         self._is_complete = result
         if result:
             self.status = TaskStatus.COMPLETE
-        else if self.status == TaskStatus.COMPLETE:
+        elif self.status == TaskStatus.COMPLETE:
             self.status = TaskStatus.INCOMPLETE
         return self._is_complete
 
@@ -164,6 +164,7 @@ class Task:
         """
         if self.history:
             return max(self.history, key=lambda completion_rec: completion_rec.completed_at)
+        return None
 
     def create_and_launch_ical_event(self):
         cal = icalendar.Calendar()
