@@ -14,7 +14,7 @@ import logging
 import croniter
 
 from procrastitask.dynamics.base_dynamic import BaseDynamic
-from procrastitask.task import Task
+from procrastitask.task import Task, TaskStatus
 from procrastitask.task_collection import TaskCollection
 
 
@@ -633,6 +633,16 @@ class App:
             [print(el) for el in to_return]
         return to_return
 
+    def list_in_progress_tasks(self):
+        self.reset_screen()
+        in_progress_tasks = [
+            task for task in self.all_tasks if task.status == TaskStatus.IN_PROGRESS
+        ]
+        if not in_progress_tasks:
+            print("No tasks are currently in progress.")
+            return
+        self.list_all_tasks(task_list_override=in_progress_tasks, smart_filter=False)
+
     def _is_number(self, num_string):
         try:
             float(num_string)
@@ -777,7 +787,7 @@ class App:
             return found_id_matches[0]
         return None
 
-    CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4): "
+    CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4, q = view inprogress queue, q4 = mark task as in-progress, dq4 = dequeue a task from inprogress): "
 
     def display_home(self):
         print("\n")
@@ -801,7 +811,7 @@ class App:
             selected_task = self.cached_listed_tasks.get(int(index_val))
             selected_task.complete()
             print("\nTask completed.")
-        if command.startswith("d"):
+        if command.startswith("d") and not command.startswith("dq"):
             index_val = command.split("d")[1]
             selected_task = self.cached_listed_tasks.get(int(index_val))
             self.delete_task(selected_task.title)
@@ -839,6 +849,18 @@ class App:
         if command == "history":
             recents = self.task_collection.get_recently_completed_tasks()
             self.list_all_tasks(task_list_override=recents, smart_filter=False)
+        if command == "q":
+            self.list_in_progress_tasks()
+        if command.startswith("q") and command != "q":
+            index_val = command.split("q")[1]
+            selected_task = self.cached_listed_tasks.get(int(index_val))
+            selected_task.set_in_progress()
+            print(f"\nTask marked as in-progress: {selected_task.title}")
+        if command.startswith("dq"):
+            index_val = command.split("dq")[1]
+            selected_task = self.cached_listed_tasks.get(int(index_val))
+            selected_task.set_incomplete()
+            print(f"\nTask marked as incomplete: {selected_task.title}")
 
         return
 

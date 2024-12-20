@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import unittest
 from procrastitask.dynamics.linear_dynamic import LinearDynamic
-from procrastitask.task import Task
+from procrastitask.task import Task, TaskStatus
 from freezegun import freeze_time
 
 
@@ -23,8 +23,10 @@ class TestTask(unittest.TestCase):
         with freeze_time(right_now):
             created_task.complete()
         self.assertTrue(created_task.is_complete)
+        self.assertEqual(created_task.status, TaskStatus.COMPLETE)
         with freeze_time(right_now + timedelta(hours=1.1)):
             self.assertFalse(created_task.is_complete)
+            self.assertEqual(created_task.status, TaskStatus.INCOMPLETE)
 
     def test_cron_stress_resets_at_interval_overlap(self):
         """
@@ -52,4 +54,38 @@ class TestTask(unittest.TestCase):
         with freeze_time(right_now + timedelta(days=28)): # Now skip forward 4 weeks. The stress should be less than the maximum.
             second_stress = created_task.get_rendered_stress()
             self.assertLess(second_stress, max_rendered_stress)
-        
+
+    def test_set_task_in_progress(self):
+        right_now = datetime.now()
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=10,
+            periodicity=None,
+            stress_dynamic=None,
+            creation_date=right_now,
+            last_refreshed=right_now,
+        )
+        created_task.set_in_progress()
+        self.assertEqual(created_task.status, TaskStatus.IN_PROGRESS)
+        self.assertFalse(created_task.is_complete)
+
+    def test_set_task_incomplete(self):
+        right_now = datetime.now()
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=10,
+            periodicity=None,
+            stress_dynamic=None,
+            creation_date=right_now,
+            last_refreshed=right_now,
+        )
+        created_task.set_in_progress()
+        created_task.set_incomplete()
+        self.assertEqual(created_task.status, TaskStatus.INCOMPLETE)
+        self.assertFalse(created_task.is_complete)

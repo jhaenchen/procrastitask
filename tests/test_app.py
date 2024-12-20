@@ -1,6 +1,6 @@
 import unittest
 from procrastitask.procrastitask_app import App
-from procrastitask.task import Task
+from procrastitask.task import Task, TaskStatus
 
 
 class TestApp(unittest.TestCase):
@@ -20,3 +20,36 @@ class TestApp(unittest.TestCase):
         
         self.assertNotIn(task1.identifier, task2.dependent_on)
         self.assertNotIn(task1.identifier, task3.dependent_on)
+
+    def test_set_task_in_progress_via_command(self):
+        app = App()
+        task = Task("Task 1", "description", 1, 1, 1)
+        app.all_tasks = [task]
+        app.cached_listed_tasks = {0: task}
+        
+        app.display_home("q0")
+        
+        self.assertEqual(task.status, TaskStatus.IN_PROGRESS)
+
+    def test_set_task_incomplete_via_command(self):
+        app = App()
+        task = Task("Task 1", "description", 1, 1, 1)
+        task.set_in_progress()
+        app.all_tasks = [task]
+        app.cached_listed_tasks = {0: task}
+        
+        app.display_home("dq0")
+        
+        self.assertEqual(task.status, TaskStatus.INCOMPLETE)
+
+    def test_view_in_progress_tasks(self):
+        app = App()
+        task1 = Task("Task 1", "description", 1, 1, 1)
+        task2 = Task("Task 2", "description", 1, 1, 1)
+        task2.set_in_progress()
+        app.all_tasks = [task1, task2]
+        
+        in_progress_tasks = app.list_in_progress_tasks()
+        
+        self.assertIn(task2, in_progress_tasks)
+        self.assertNotIn(task1, in_progress_tasks)
