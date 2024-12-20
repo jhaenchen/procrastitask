@@ -7,7 +7,7 @@ import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime, timedelta
-from typing import Callable, List, Optional, TypeVar, Union
+from typing import Callable, List, Optional, TypeVar, Union, Tuple
 import ast
 import logging
 
@@ -586,7 +586,7 @@ class App:
         extend_cache=False,
         also_print=True,
         smart_filter=True,
-    ):
+    ) -> List[Tuple[str, str]]:
         if also_print:
             self.reset_screen()
             velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
@@ -623,14 +623,13 @@ class App:
             space_padding = " " * (int(max_digit_length) - len(str(true_idx)))
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if (task.is_due_soon() and not task.is_complete) else ""
-            to_return.append(
-                f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
-            )
+            task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
+            to_return.append((task_str, task.identifier))
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
 
         if also_print:
-            [print(el) for el in to_return]
+            [print(el[0]) for el in to_return]
         return to_return
 
     def list_in_progress_tasks(self):
@@ -768,12 +767,12 @@ class App:
 
         print_until = 0
         for idx, candidate in enumerate(would_print_collection):
-            new_y = pos[1] + math.ceil(len(candidate) / columns)
+            new_y = pos[1] + math.ceil(len(candidate[0]) / columns)
             if new_y < rows:
                 pos[1] = new_y
                 print_until += 1
         for to_print in would_print_collection[:print_until]:
-            print(to_print)
+            print(to_print[0])
 
     def find_task_by_any_id(self, input_str: str) -> Optional[Task]:
         if self._is_number(input_str):

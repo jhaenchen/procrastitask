@@ -53,3 +53,17 @@ class TestApp(unittest.TestCase):
         
         self.assertIn(task2, in_progress_tasks)
         self.assertNotIn(task1, in_progress_tasks)
+
+    def test_list_all_tasks_returns_tuples_with_identifiers(self):
+        app = App()
+        task1 = Task("Task 1", "description", 1, 1, 1)
+        task2 = Task("Task 2", "description", 1, 1, 1)
+        app.all_tasks = [task1, task2]
+        
+        result = app.list_all_tasks(also_print=False)
+        
+        self.assertEqual(len(result), 2)
+        self.assertIsInstance(result[0], tuple)
+        self.assertEqual(result[0][1], task1.identifier)
+        self.assertIsInstance(result[1], tuple)
+        self.assertEqual(result[1][1], task2.identifier)
