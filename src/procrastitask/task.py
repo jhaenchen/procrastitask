@@ -13,6 +13,10 @@ from .dynamics.base_dynamic import BaseDynamic
 
 log = logging.getLogger()
 
+class TaskStatus:
+    INCOMPLETE = "INCOMPLETE"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETE = "COMPLETE"
 
 @dataclass
 class CompletionRecord:
@@ -50,6 +54,7 @@ class Task:
     cool_down: Optional[str] = None
     periodicity: Optional[str] = None
     history: List[CompletionRecord] = field(default_factory=lambda: [])
+    status: str = TaskStatus.INCOMPLETE
 
     def _format_num_as_int_if_possible(self, val):
         floated = float(val)
@@ -97,6 +102,10 @@ class Task:
         
         result = render_logic()
         self._is_complete = result
+        if result:
+            self.status = TaskStatus.COMPLETE
+        else if self.status == TaskStatus.COMPLETE:
+            self.status = TaskStatus.INCOMPLETE
         return self._is_complete
 
     @is_complete.setter
@@ -107,6 +116,7 @@ class Task:
             self.update_last_refreshed()
             if val == True:
                 self.history.append(CompletionRecord(self.last_refreshed, self.get_rendered_stress()))
+            self.status = TaskStatus.COMPLETE if val else TaskStatus.INCOMPLETE
 
     @staticmethod
     def convert_cool_down_str_to_delta(cool_down: str) -> timedelta:
@@ -242,12 +252,19 @@ class Task:
         self.is_complete = True
         log.info(f"Completing task: {self.title}.")
 
+    def set_in_progress(self):
+        self.status = TaskStatus.IN_PROGRESS
+
+    def set_incomplete(self):
+        self.status = TaskStatus.INCOMPLETE
+
     @staticmethod
     def from_dict(incoming_dict):
         due_date = incoming_dict.get("due_date")
         last_refreshed = incoming_dict.get("last_refreshed")
         stress_dynamic = incoming_dict.get("stress_dynamic")
         creation_date = incoming_dict.get("creation_date")
+        status = incoming_dict.get("status", TaskStatus.INCOMPLETE)
 
         return Task(
             title=incoming_dict["title"],
@@ -271,7 +288,8 @@ class Task:
             list_name=incoming_dict.get("list_name", "default"),
             cool_down=incoming_dict.get("cool_down"),
             periodicity=incoming_dict.get("periodicity"),
-            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])]
+            history=[CompletionRecord.from_dict(data) for data in incoming_dict.get("history", [])],
+            status=status
         )
 
     def to_dict(self):
@@ -293,5 +311,6 @@ class Task:
             "list_name": self.list_name,
             "cool_down": self.cool_down,
             "periodicity": self.periodicity,
-            "history": [completion.to_dict() for completion in self.history]
+            "history": [completion.to_dict() for completion in self.history],
+            "status": self.status
         }
