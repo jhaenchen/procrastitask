@@ -7,7 +7,7 @@ import tempfile
 from subprocess import call
 from time import sleep
 from datetime import datetime, timedelta
-from typing import Callable, List, Optional, TypeVar, Union
+from typing import Callable, List, Optional, TypeVar, Union, Tuple
 import ast
 import logging
 
@@ -119,7 +119,10 @@ class App:
         with open(self.get_db_location(), "r") as db:
             return db.read()
 
-    def load(self, default_list: Optional[Union[List, str]] = None):
+    def load(self, default_list: Optional[Union[List, str]] = None, task_list_override=None):
+        if task_list_override:
+            self.task_collection = TaskCollection(task_list_override, [])
+            return
         self.load_list_config()
         if self.task_lists:
             if default_list:
@@ -586,7 +589,7 @@ class App:
         extend_cache=False,
         also_print=True,
         smart_filter=True,
-    ):
+    ) -> List[Tuple[str, str]]:
         if also_print:
             self.reset_screen()
             velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
@@ -623,14 +626,13 @@ class App:
             space_padding = " " * (int(max_digit_length) - len(str(true_idx)))
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if (task.is_due_soon() and not task.is_complete) else ""
-            to_return.append(
-                f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
-            )
+            task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
+            to_return.append((task_str, task.identifier))
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
 
         if also_print:
-            [print(el) for el in to_return]
+            [print(el[0]) for el in to_return]
         return to_return
 
     def list_in_progress_tasks(self):
@@ -642,6 +644,7 @@ class App:
             print("No tasks are currently in progress.")
             return
         self.list_all_tasks(task_list_override=in_progress_tasks, smart_filter=False)
+        return in_progress_tasks
 
     def _is_number(self, num_string):
         try:
@@ -763,17 +766,17 @@ class App:
         would_print_collection = self.list_all_tasks(also_print=False)
         if self.should_do_refresh():
             would_print_collection = [
-                "* Please refresh your tasks"
+                ("* Please refresh your tasks", "refresh")
             ] + would_print_collection
 
         print_until = 0
         for idx, candidate in enumerate(would_print_collection):
-            new_y = pos[1] + math.ceil(len(candidate) / columns)
+            new_y = pos[1] + math.ceil(len(candidate[0]) / columns)
             if new_y < rows:
                 pos[1] = new_y
                 print_until += 1
         for to_print in would_print_collection[:print_until]:
-            print(to_print)
+            print(to_print[0])
 
     def find_task_by_any_id(self, input_str: str) -> Optional[Task]:
         if self._is_number(input_str):
@@ -789,9 +792,9 @@ class App:
 
     CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4, q = view inprogress queue, q4 = mark task as in-progress, dq4 = dequeue a task from inprogress): "
 
-    def display_home(self):
+    def display_home(self, optional_start_command: Optional[str] = None):
         print("\n")
-        command = input(self.CORE_COMMAND_PROMPT)
+        command = optional_start_command or input(self.CORE_COMMAND_PROMPT)
         self.reset_screen()
 
         if len(command) == 0:
