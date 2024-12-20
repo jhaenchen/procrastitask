@@ -192,8 +192,24 @@ class App:
     def does_local_config_file_exist(self):
         return os.path.isfile(self.get_config_path())
 
-    def delete_task(self, task_title):
+    def delete_task_by_identifier(self, task_identifier):
         len_before = len(self.all_tasks)
+        specified_task = [task for task in self.all_tasks if task.identifier == task_identifier]
+        if not specified_task:
+            raise ValueError(f"I couldn't find the task with identifier: {task_identifier}")
+        elif len(specified_task) > 1:
+            raise ValueError(f"I found more than one task with identifier: {task_identifier}: {specified_task}")
+        else:
+            specified_task = specified_task[0]
+        self.all_tasks = [task for task in self.all_tasks if task.identifier != task_identifier]
+        if len_before == len(self.all_tasks):
+            raise ValueError(f"I couldn't find the task with identifier: {task_identifier}")
+        # Remove the deleted task's identifier from other tasks' dependent_on lists
+        for task in self.all_tasks:
+            task.dependent_on = [dep for dep in task.dependent_on if dep != specified_task.identifier]
+        log.info(f"Task deleted: {specified_task.title}")
+
+    def delete_task(self, task_title):
         specified_task = [task for task in self.all_tasks if task.title == task_title]
         if not specified_task:
             raise ValueError(f"I couldn't find the task with title: {task_title}")
@@ -201,13 +217,7 @@ class App:
             raise ValueError(f"I found more than one task with title: {task_title}: {specified_task}")
         else:
             specified_task = specified_task[0]
-        self.all_tasks = [task for task in self.all_tasks if task.title != task_title]
-        if len_before == len(self.all_tasks):
-            raise ValueError(f"I couldn't find the task with title: {task_title}")
-        # Remove the deleted task's identifier from other tasks' dependent_on lists
-        for task in self.all_tasks:
-            task.dependent_on = [dep for dep in task.dependent_on if dep != specified_task.identifier]
-        log.info(f"Task deleted: {task_title}")
+        self.delete_task_by_identifier(specified_task.identifier)
 
     def delete_task_by_idx(self, task_idx: int):
         selected_task = self.cached_listed_tasks.get(int(task_idx))
