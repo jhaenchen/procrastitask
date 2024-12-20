@@ -119,7 +119,10 @@ class App:
         with open(self.get_db_location(), "r") as db:
             return db.read()
 
-    def load(self, default_list: Optional[Union[List, str]] = None):
+    def load(self, default_list: Optional[Union[List, str]] = None, task_list_override=None):
+        if task_list_override:
+            self.task_collection = TaskCollection(task_list_override, [])
+            return
         self.load_list_config()
         if self.task_lists:
             if default_list:
@@ -641,6 +644,7 @@ class App:
             print("No tasks are currently in progress.")
             return
         self.list_all_tasks(task_list_override=in_progress_tasks, smart_filter=False)
+        return in_progress_tasks
 
     def _is_number(self, num_string):
         try:
@@ -762,7 +766,7 @@ class App:
         would_print_collection = self.list_all_tasks(also_print=False)
         if self.should_do_refresh():
             would_print_collection = [
-                "* Please refresh your tasks"
+                ("* Please refresh your tasks", "refresh")
             ] + would_print_collection
 
         print_until = 0
@@ -788,9 +792,9 @@ class App:
 
     CORE_COMMAND_PROMPT = "Enter your command (n = new task, ls = list, 4 = view 4, x4 = complete 4, d4 = delete 4, s = save, r = refresh, e4 = edit 4, cal4 = calendar 4, load = reload, n4 = create next task after 4, p4 = create previous task before 4, q = view inprogress queue, q4 = mark task as in-progress, dq4 = dequeue a task from inprogress): "
 
-    def display_home(self):
+    def display_home(self, optional_start_command: Optional[str] = None):
         print("\n")
-        command = input(self.CORE_COMMAND_PROMPT)
+        command = optional_start_command or input(self.CORE_COMMAND_PROMPT)
         self.reset_screen()
 
         if len(command) == 0:

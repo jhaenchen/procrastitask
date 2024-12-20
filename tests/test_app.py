@@ -48,6 +48,7 @@ class TestApp(unittest.TestCase):
         task2 = Task("Task 2", "description", 1, 1, 1)
         task2.set_in_progress()
         app.all_tasks = [task1, task2]
+        app.load(task_list_override=app.all_tasks)
         
         in_progress_tasks = app.list_in_progress_tasks()
         
