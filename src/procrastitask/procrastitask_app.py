@@ -271,12 +271,22 @@ class App:
         task stress rather than the base in the case of dynamics.
         """
         found_task: Task = self.cached_listed_tasks[cached_idx]
+        self.modify_task_stress_by_offset(found_task.identifier, offset)
+
+    def modify_task_stress_by_offset(self, task_identifier: str, offset: int):
+        """
+        Change the stress of a task by an offset. This should apply to the rendered
+        task stress rather than the base in the case of dynamics.
+        """
+        found_task = self.find_task_by_any_id(task_identifier)
+        if not found_task:
+            raise ValueError(f"Task with identifier {task_identifier} not found.")
         existing_stress = found_task.get_rendered_stress()
         new_stress = existing_stress + offset
         found_task.stress = new_stress
         found_task.update_last_refreshed()
         print(
-            f"Updating task stress for {found_task} from {existing_stress} -> {new_stress}"
+            f"Updating task stress for {found_task.title} from {existing_stress} -> {new_stress}"
         )
 
     def get_numerical_prompt(
@@ -653,8 +663,7 @@ class App:
         if not in_progress_tasks:
             print("No tasks are currently in progress.")
             return
-        self.list_all_tasks(task_list_override=in_progress_tasks, smart_filter=False)
-        return in_progress_tasks
+        return self.list_all_tasks(task_list_override=in_progress_tasks, smart_filter=False)
 
     def _is_number(self, num_string):
         try:

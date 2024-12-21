@@ -50,10 +50,10 @@ class TestApp(unittest.TestCase):
         app.all_tasks = [task1, task2]
         app.load(task_list_override=app.all_tasks)
         
-        in_progress_tasks = app.list_in_progress_tasks()
+        in_progress_tasks = [t[1] for t in app.list_in_progress_tasks()]
         
-        self.assertIn(task2, in_progress_tasks)
-        self.assertNotIn(task1, in_progress_tasks)
+        self.assertIn(task2.identifier, in_progress_tasks)
+        self.assertNotIn(task1.identifier, in_progress_tasks)
 
     def test_list_all_tasks_returns_tuples_with_identifiers(self):
         app = App()

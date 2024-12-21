@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from procrastitask.task import CompletionRecord, Task
 from datetime import timedelta, datetime
 
@@ -51,3 +51,9 @@ class TaskCollection:
                 uncompleted_stress += task.get_rendered_stress()
 
         return (accomplished_total / ((uncompleted_stress or 1) + accomplished_total)) * 100
+    
+    def find_task_by_identifier(self, identifier: str) -> Optional[Task]:
+        for task in self.filtered_tasks:
+            if task.identifier == identifier:
+                return task
+        return None
