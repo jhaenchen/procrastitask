@@ -883,7 +883,7 @@ class App:
             selected_task = self.cached_listed_tasks.get(int(index_val))
             selected_task.set_incomplete()
             print(f"\nTask marked as incomplete: {selected_task.title}")
-        if command == "recently created":
+        if command == "created":
             recents = self.task_collection.get_recently_created_tasks()
             self.list_all_tasks(task_list_override=recents, smart_filter=False)
 
