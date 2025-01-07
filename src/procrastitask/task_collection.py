@@ -57,3 +57,10 @@ class TaskCollection:
             if task.identifier == identifier:
                 return task
         return None
+
+    def get_recently_created_tasks(self, limit: int = 10) -> List[Task]:
+        """
+        Retrieve tasks based on their creation_date.
+        """
+        recently_created = sorted(self.filtered_tasks, key=lambda t: t.creation_date, reverse=True)
+        return recently_created[:limit]

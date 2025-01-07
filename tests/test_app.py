@@ -68,3 +68,20 @@ class TestApp(unittest.TestCase):
         self.assertEqual(result[0][1], task1.identifier)
         self.assertIsInstance(result[1], tuple)
         self.assertEqual(result[1][1], task2.identifier)
+
+    def test_recently_created_command(self):
+        app = App()
+        task1 = Task("Task 1", "description", 1, 1, 1)
+        task2 = Task("Task 2", "description", 1, 1, 1)
+        task3 = Task("Task 3", "description", 1, 1, 1)
+        app.all_tasks = [task1, task2, task3]
+        app.load(task_list_override=app.all_tasks)
+        
+        app.display_home("recently created")
+        
+        recently_created_tasks = [t[1] for t in app.list_all_tasks()]
+        
+        self.assertEqual(len(recently_created_tasks), 3)
+        self.assertEqual(recently_created_tasks[0], task3.identifier)
+        self.assertEqual(recently_created_tasks[1], task2.identifier)
+        self.assertEqual(recently_created_tasks[2], task1.identifier)
