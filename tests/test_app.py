@@ -68,3 +68,4 @@ class TestApp(unittest.TestCase):
         self.assertEqual(result[0][1], task1.identifier)
         self.assertIsInstance(result[1], tuple)
         self.assertEqual(result[1][1], task2.identifier)
+
