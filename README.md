@@ -39,6 +39,7 @@ cal4: Create a calendar event for task #4 in the list and open it in my Calendar
 nn: Create a new task using vim to enter the details
 n3: Create a task that depends on task [3] being completed first
 p3: Create a task that task [3] depends on being completed first
+created: List the tasks that were most recently created
 ```
 
 Let's walk through creating a task. I'll hit the key `n` and then hit the enter key.
