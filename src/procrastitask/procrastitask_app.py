@@ -609,7 +609,7 @@ class App:
         extend_cache=False,
         also_print=True,
         smart_filter=True,
-    ) -> List[Tuple[str, str]]:
+    ) -> List[Tuple[str, str, Task]]:
         if also_print:
             self.reset_screen()
             velocity_percentage = self.task_collection.get_velocity(interval=timedelta(weeks=1))
@@ -647,7 +647,7 @@ class App:
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if (task.is_due_soon() and not task.is_complete) else ""
             task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
-            to_return.append((task_str, task.identifier))
+            to_return.append((task_str, task.identifier, task))
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task
 

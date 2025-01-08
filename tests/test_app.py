@@ -69,3 +69,15 @@ class TestApp(unittest.TestCase):
         self.assertIsInstance(result[1], tuple)
         self.assertEqual(result[1][1], task2.identifier)
 
+    def test_list_all_tasks_returns_tasks_in_stress_order(self):
+        app = App()
+        task1 = Task("Task 1", "description", 1, 1, 1)
+        task2 = Task("Task 2", "description", 1, 1, 2)
+        task3 = Task("Task 3", "description", 1, 1, 3)
+        app.all_tasks = [task1, task2, task3]
+        app.load(task_list_override=app.all_tasks)
+        
+        result = app.list_all_tasks(also_print=False)
+        
+        self.assertEqual(result[0][1], task3.identifier)
+        self.assertEqual(result[1][1], task2.identifier)
