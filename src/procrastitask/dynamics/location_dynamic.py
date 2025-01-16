@@ -30,9 +30,9 @@ class LocationDynamic(BaseDynamic):
             return base_stress * 2  # Increase stress by 100% if within the specified radius
         return base_stress
 
-    _full_prefix = "dynamic-location.{latitude}.{longitude}.{radius}"
+    _full_prefix = "dynamic-location/{latitude}/{longitude}/{radius}"
 
-    prefixes = [_full_prefix, "location."]
+    prefixes = [_full_prefix, "location/"]
 
     @staticmethod
     def from_text(text: str) -> "LocationDynamic":
@@ -44,7 +44,7 @@ class LocationDynamic(BaseDynamic):
         if parts is None:
             raise ValueError(f"Invalid text repr: {text}")
 
-        parts = parts[-1:][0].split(".")
+        parts = parts[-1:][0].split("/")
         if "current" in parts[:2]:
             location = get_location()
             if location is None:
@@ -57,4 +57,4 @@ class LocationDynamic(BaseDynamic):
         return LocationDynamic(latitude=latitude, longitude=longitude, radius=radius)
 
     def to_text(self):
-        return f"dynamic-location-{self.latitude}-{self.longitude}-{self.radius}"
+        return f"dynamic-location/{self.latitude}/{self.longitude}/{self.radius}"
