@@ -13,7 +13,7 @@ Features:
 * "Smart" ranking (or Multi-unit priority coordinate ranking system)
 * Dropbox backup support
 * Automatic priority refresh detection
-
+* Location-based dynamic
 
 How to Run:
 
@@ -55,6 +55,7 @@ Dependent On: // Optional, are any tasks required before this one? (You can pass
 Increase every x days: // Optional integer, increase the stress value every X days
 Cool down: // Optional string, after completion, bring this task back after X, (Xmin, Xd, Xw, Xm) 
 Periodicity: // Optional, task comes back at a time, cron syntax
+Location: // Optional, specify a location to adjust stress based on your current location
 ```
 
 After entering these details, we'll see our task in the list. We should hit `s` and `enter` to save this new task.
@@ -64,6 +65,7 @@ The list is sorted first by stress, then by difficulty. However, there are vario
 
 * If a task is due "soon" (aka 2 days for every hour of effort), it will receive a bonus in priority of 1/3 of its original stress value
 * If you specify a linear increase dynamic via the "Increase every x days" field, the stress (priority) will increase periodically
+* If you specify a location-based dynamic, the stress will be adjusted based on your current location
 
 
 ### Backup your database elsewhere:
