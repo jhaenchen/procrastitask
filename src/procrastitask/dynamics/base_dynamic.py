@@ -31,6 +31,7 @@ class BaseDynamic(ABC):
         from .linear_dynamic import LinearDynamic
         from .linear_with_peak_dynamic import LinearWithPeakDynamic
         from .step_due_date_dynamic import StepDueDateDynamic
+        from .location_dynamic import LocationDynamic
         all_dynamics = []
         for class_obj in BaseDynamic.__subclasses__():
             all_dynamics.append(class_obj)
