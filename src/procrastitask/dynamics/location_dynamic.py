@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from .base_dynamic import BaseDynamic
-from ..location import get_location
+from ..location import get_location, get_location_from_name
 from geopy.distance import geodesic
 
 
@@ -50,6 +50,9 @@ class LocationDynamic(BaseDynamic):
             if location is None:
                 raise RuntimeError("Unable to get current location")
             latitude, longitude = map(float, location.split(","))
+            radius = float(parts[-1])
+        elif parts[0] in get_location_from_name(parts[0]):
+            latitude, longitude = get_location_from_name(parts[0])
             radius = float(parts[-1])
         else:
             latitude, longitude, radius = map(float, parts)
