@@ -60,7 +60,7 @@ class Task:
         floated = float(val)
         if floated.is_integer():
             return int(floated)
-        return floated
+        return round(floated, 1)
 
     @property
     def is_complete(self):
@@ -136,12 +136,12 @@ class Task:
         log.debug(f"Evaluating rendered stress for task {self.title}")
         base_stress = self.stress
         if not self.stress_dynamic:
-            return base_stress
+            return round(base_stress, 1)
         base_stress_date = self.last_refreshed
         if self.periodicity:
             cron = croniter.croniter(self.periodicity, datetime.now())
             base_stress_date = cron.get_prev(datetime)
-        return self.stress_dynamic.apply(base_stress_date, self.stress, self)
+        return round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
 
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()
