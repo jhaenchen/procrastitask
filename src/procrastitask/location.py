@@ -43,3 +43,14 @@ def get_location(nocache=False):
         log.debug(f"Error getting location from IP: {e}")
 
     return None
+
+def get_location_from_name(name):
+    location_map = {
+        "houston": (29.7601, -95.3701),
+        "ingram": (30.0774, -99.2403),
+        "nyc": (40.7128, -74.0060),
+        "timbergrove": (29.7929,-95.4209),
+        "tcjester": (29.824459,-95.453439)
+        # Add more mappings as needed
+    }
+    return location_map.get(name)

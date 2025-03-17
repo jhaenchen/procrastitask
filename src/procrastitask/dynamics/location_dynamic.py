@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 from .base_dynamic import BaseDynamic
-from ..location import get_location
+from ..location import get_location, get_location_from_name
 from geopy.distance import geodesic
+from logging import getLogger
 
+logger = getLogger(__name__)
 
 @dataclass
 class LocationDynamic(BaseDynamic):
@@ -36,25 +38,35 @@ class LocationDynamic(BaseDynamic):
 
     @staticmethod
     def from_text(text: str) -> "LocationDynamic":
-        parts = None
-        for prefix in LocationDynamic.prefixes:
-            prefix = BaseDynamic.get_cleaned_prefix(prefix)
-            if prefix in text:
-                parts = text.split(prefix)
-        if parts is None:
-            raise ValueError(f"Invalid text repr: {text}")
+        try:
+            parts = None
+            for prefix in LocationDynamic.prefixes:
+                prefix = BaseDynamic.get_cleaned_prefix(prefix)
+                if prefix in text:
+                    parts = text.split(prefix)
+            if parts is None:
+                raise ValueError(f"Invalid text repr: {text}")
 
-        parts = parts[-1:][0].split("/")
-        if "current" in parts[:2]:
-            location = get_location()
-            if location is None:
-                raise RuntimeError("Unable to get current location")
-            latitude, longitude = map(float, location.split(","))
-            radius = float(parts[-1])
-        else:
-            latitude, longitude, radius = map(float, parts)
+            parts = parts[-1:][0].split("/")
+            if "current" in parts[:2]:
+                location = get_location()
+                if location is None:
+                    raise RuntimeError("Unable to get current location")
+                latitude, longitude = map(float, location.split(","))
+                radius = float(parts[-1])
+            elif get_location_from_name(parts[0]):
+                latitude, longitude = get_location_from_name(parts[0])
+                radius = float(parts[-1])
+            else:
+                latitude, longitude, radius = map(float, parts)
 
-        return LocationDynamic(latitude=latitude, longitude=longitude, radius=radius)
+            return LocationDynamic(latitude=latitude, longitude=longitude, radius=radius)
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error while parsing location dynamic from text: {e}")
+            raise
+        return None
 
     def to_text(self):
         return f"dynamic-location/{self.latitude}/{self.longitude}/{self.radius}"
