@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import unittest
 from procrastitask.dynamics.linear_dynamic import LinearDynamic
-from procrastitask.task import Task, TaskStatus
+from procrastitask.task import Task, TaskStatus, CompletionRecord
 from freezegun import freeze_time
 
 
@@ -89,3 +89,53 @@ class TestTask(unittest.TestCase):
         created_task.set_incomplete()
         self.assertEqual(created_task.status, TaskStatus.INCOMPLETE)
         self.assertFalse(created_task.is_complete)
+
+    def test_is_complete_uses_most_recent_completion_time_from_history(self):
+        right_now = datetime.now()
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=10,
+            periodicity=None,
+            stress_dynamic=None,
+            creation_date=right_now,
+            last_refreshed=right_now,
+            cool_down="1hr"
+        )
+        with freeze_time(right_now):
+            created_task.complete()
+            self.assertTrue(created_task.is_complete)
+            self.assertEqual(created_task.status, TaskStatus.COMPLETE)
+        with freeze_time(right_now + timedelta(hours=0.5)):
+            self.assertTrue(created_task.is_complete)
+            self.assertEqual(created_task.status, TaskStatus.COMPLETE)
+        with freeze_time(right_now + timedelta(hours=1.1)):
+            self.assertFalse(created_task.is_complete)
+            self.assertEqual(created_task.status, TaskStatus.INCOMPLETE)
+
+    def test_is_complete_updates_history_with_completion_time(self):
+        right_now = datetime.now()
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=10,
+            periodicity=None,
+            stress_dynamic=None,
+            creation_date=right_now,
+            last_refreshed=right_now,
+            cool_down="1hr"
+        )
+        with freeze_time(right_now):
+            created_task.complete()
+        self.assertEqual(len(created_task.history), 1)
+        self.assertEqual(created_task.history[0].completed_at, right_now)
+        self.assertEqual(created_task.history[0].stress_at_completion, 10)
+        with freeze_time(right_now + timedelta(hours=0.5)):
+            created_task.complete()
+        self.assertEqual(len(created_task.history), 2)
+        self.assertEqual(created_task.history[1].completed_at, right_now + timedelta(hours=0.5))
+        self.assertEqual(created_task.history[1].stress_at_completion, 10)
