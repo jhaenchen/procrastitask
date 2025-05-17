@@ -106,12 +106,11 @@ class TestTask(unittest.TestCase):
         )
         with freeze_time(right_now):
             created_task.complete()
-        self.assertTrue(created_task.is_complete)
-        self.assertEqual(created_task.status, TaskStatus.COMPLETE)
+            self.assertTrue(created_task.is_complete)
+            self.assertEqual(created_task.status, TaskStatus.COMPLETE)
         with freeze_time(right_now + timedelta(hours=0.5)):
-            created_task.complete()
-        self.assertTrue(created_task.is_complete)
-        self.assertEqual(created_task.status, TaskStatus.COMPLETE)
+            self.assertTrue(created_task.is_complete)
+            self.assertEqual(created_task.status, TaskStatus.COMPLETE)
         with freeze_time(right_now + timedelta(hours=1.1)):
             self.assertFalse(created_task.is_complete)
             self.assertEqual(created_task.status, TaskStatus.INCOMPLETE)
