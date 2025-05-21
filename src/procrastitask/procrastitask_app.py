@@ -434,7 +434,7 @@ class App:
 
                 periodicity = self.cron_validator(periodicity)
 
-                dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
+                dynamic = BaseDynamic.from_text_with_operators(dynamic) if dynamic else None
                 dependent_on = [
                     self.find_task_by_any_id(el).identifier
                     for el in ast.literal_eval(dependent_on)

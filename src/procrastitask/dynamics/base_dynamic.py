@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from datetime import datetime
+import re
 
 
 class BaseDynamic(ABC):
@@ -46,17 +47,59 @@ class BaseDynamic(ABC):
 
     @staticmethod
     def find_dynamic(text: str) -> Optional["BaseDynamic"]:
-        all_dynamics = BaseDynamic.get_all_dynamics()
+        return BaseDynamic.from_text_with_operators(text)
 
-        for class_obj in all_dynamics:
-            try:
-                return class_obj.from_text(text)
-            except:
-                pass
-        if text:
-            raise ValueError(f"Provided dynamic text {text} could not be matched to a dynamic. Available: {BaseDynamic.get_all_prefixes()}")
-        return None
+    @staticmethod
+    def from_text_with_operators(text: str) -> Optional["BaseDynamic"]:
+        # Split the text by operators
+        parts = re.split(r'(\+)', text)
+        if len(parts) == 1:
+            return BaseDynamic.find_dynamic(parts[0])
+        
+        dynamics = []
+        operators = []
+        for part in parts:
+            if part in ['+', '-']:
+                operators.append(part)
+            else:
+                dynamics.append(BaseDynamic.find_dynamic(part.strip()))
+        
+        if not dynamics or not operators:
+            raise ValueError(f"Invalid dynamic string with operators: {text}")
+        
+        return CombinedDynamic(dynamics, operators)
 
     @staticmethod
     def get_implementers():
         return BaseDynamic.__subclasses__()
+
+
+class CombinedDynamic(BaseDynamic):
+    def __init__(self, dynamics: List[BaseDynamic], operators: List[str]):
+        self.dynamics = dynamics
+        self.operators = operators
+
+    def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
+        result = self.dynamics[0].apply(creation_date, base_stress, task)
+        for i, operator in enumerate(self.operators):
+            if operator == '+':
+                result += self.dynamics[i + 1].apply(creation_date, base_stress, task)
+            elif operator == '-':
+                result -= self.dynamics[i + 1].apply(creation_date, base_stress, task)
+            else:
+                raise ValueError(f"Unsupported operator: {operator}")
+        return result
+
+    @staticmethod
+    def from_text(text: str) -> "CombinedDynamic":
+        return BaseDynamic.from_text_with_operators(text)
+
+    def to_text(self) -> str:
+        result = self.dynamics[0].to_text()
+        for i, operator in enumerate(self.operators):
+            result += f" {operator} {self.dynamics[i + 1].to_text()}"
+        return result
+
+    @property
+    def prefixes(self) -> List[str]:
+        return []
