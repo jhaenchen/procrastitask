@@ -142,12 +142,12 @@ class TestTask(unittest.TestCase):
         self.assertEqual(created_task.history[1].completed_at, right_now + timedelta(hours=0.5))
         self.assertEqual(created_task.history[1].stress_at_completion, 10)
 
-    def test_combined_dynamic(self):
+    def test_combined_dynamic_addition(self):
         right_now = datetime.now()
         base_stress = 10
         linear_dynamic = LinearDynamic(1)
-        step_due_date_dynamic = StepDueDateDynamic(50, 5)
-        combined_dynamic = BaseDynamic.from_text_with_operators("dynamic-linear-day-1 + dynamic-step-due.5.50")
+        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} + {linear_dynamic.to_text()}")
+        self.assertIsInstance(combined_dynamic, BaseDynamic)
         created_task = Task(
             "Test task",
             "description",
@@ -160,7 +160,30 @@ class TestTask(unittest.TestCase):
             last_refreshed=right_now,
             due_date=right_now + timedelta(days=5)
         )
-        with freeze_time(right_now + timedelta(days=5)):
+        with freeze_time(right_now + timedelta(days=1)):
             rendered_stress = created_task.get_rendered_stress()
-            expected_stress = base_stress + 5 + (base_stress * 0.5)
+            expected_stress = base_stress + 2
+            self.assertEqual(rendered_stress, expected_stress)
+
+    def test_combined_dynamic_subtraction(self):
+        right_now = datetime.now()
+        base_stress = 10
+        linear_dynamic = LinearDynamic(2)
+        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} - {LinearDynamic(1).to_text()}")
+        self.assertIsInstance(combined_dynamic, BaseDynamic)
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=base_stress,
+            periodicity=None,
+            stress_dynamic=combined_dynamic,
+            creation_date=right_now,
+            last_refreshed=right_now,
+            due_date=right_now + timedelta(days=5)
+        )
+        with freeze_time(right_now + timedelta(days=1)):
+            rendered_stress = created_task.get_rendered_stress()
+            expected_stress = base_stress + 1
             self.assertEqual(rendered_stress, expected_stress)
