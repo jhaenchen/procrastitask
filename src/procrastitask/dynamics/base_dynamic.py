@@ -69,37 +69,45 @@ class CombinedDynamic(BaseDynamic):
         self.operators = operators
 
     def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
-        # Start with base_stress, sum up all diffs from base_stress for each dynamic
-        result = base_stress
-        diff = self.dynamics[0].apply(creation_date, base_stress, task) - base_stress
+        prev_diff = self.dynamics[0].apply(creation_date, base_stress, task) - base_stress
+        diff = prev_diff
+        allow = True
         for i, operator in enumerate(self.operators):
             next_diff = self.dynamics[i + 1].apply(creation_date, base_stress, task) - base_stress
-            if operator == '+':
+            if not allow:
+                continue
+            if operator == '(+)':
                 diff += next_diff
-            elif operator == '-':
+            elif operator == '(-)':
                 diff -= next_diff
+            elif operator == '(|+)':
+                if prev_diff != 0:
+                    diff += next_diff
+                else:
+                    allow = False
             else:
                 raise ValueError(f"Unsupported operator: {operator}")
+            prev_diff = next_diff
         return base_stress + diff
 
     @staticmethod
     def from_text(text: str) -> "CombinedDynamic":
-        # Split the text by operators
-        parts = re.split(r'(\+)', text)
+        # Split the text by operators surrounded with parentheses
+        parts = re.split(r'(\(\|\+\)|\(\+\)|\(-\))', text)
+        # Remove empty strings from split
+        parts = [p for p in parts if p.strip() != '']
         if len(parts) == 1:
             return BaseDynamic.find_dynamic(parts[0])
-        
         dynamics = []
         operators = []
         for part in parts:
-            if part in ['+', '-']:
+            part = part.strip()
+            if part in ['(+)', '(-)', '(|+)']:
                 operators.append(part)
             else:
-                dynamics.append(BaseDynamic.find_dynamic(part.strip()))
-        
+                dynamics.append(BaseDynamic.find_dynamic(part))
         if not dynamics or not operators:
             raise ValueError(f"Invalid dynamic string with operators: {text}")
-        
         return CombinedDynamic(dynamics, operators)
 
     def to_text(self) -> str:
@@ -108,4 +116,4 @@ class CombinedDynamic(BaseDynamic):
             result += f" {operator} {self.dynamics[i + 1].to_text()}"
         return result
 
-    prefixes = ["{dynamic} +- {dynamic}"]
+    prefixes = ["{dynamic} (+) {dynamic}", "{dynamic} (-) {dynamic}", "{dynamic} (|+) {dynamic}"]

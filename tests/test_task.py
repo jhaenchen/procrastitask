@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import unittest
 from procrastitask.dynamics.linear_dynamic import LinearDynamic
 from procrastitask.dynamics.step_due_date_dynamic import StepDueDateDynamic
-from procrastitask.dynamics.base_dynamic import BaseDynamic
+from procrastitask.dynamics.base_dynamic import BaseDynamic, CombinedDynamic
 from procrastitask.task import Task, TaskStatus, CompletionRecord
 from freezegun import freeze_time
 
@@ -147,7 +147,7 @@ class TestTask(unittest.TestCase):
         base_stress = 10
         linear_dynamic = LinearDynamic(1)
         combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} + {linear_dynamic.to_text()}")
-        self.assertIsInstance(combined_dynamic, BaseDynamic)
+        self.assertIsInstance(combined_dynamic, CombinedDynamic)
         created_task = Task(
             "Test task",
             "description",
@@ -169,7 +169,7 @@ class TestTask(unittest.TestCase):
         right_now = datetime.now()
         base_stress = 10
         linear_dynamic = LinearDynamic(2)
-        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} - {LinearDynamic(1).to_text()}")
+        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} (-) {LinearDynamic(1).to_text()}")
         self.assertIsInstance(combined_dynamic, BaseDynamic)
         created_task = Task(
             "Test task",
