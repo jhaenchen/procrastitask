@@ -146,7 +146,7 @@ class TestTask(unittest.TestCase):
         right_now = datetime.now()
         base_stress = 10
         linear_dynamic = LinearDynamic(1)
-        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} + {linear_dynamic.to_text()}")
+        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} (+) {linear_dynamic.to_text()}")
         self.assertIsInstance(combined_dynamic, CombinedDynamic)
         created_task = Task(
             "Test task",
@@ -168,9 +168,9 @@ class TestTask(unittest.TestCase):
     def test_combined_dynamic_subtraction(self):
         right_now = datetime.now()
         base_stress = 10
-        linear_dynamic = LinearDynamic(2)
-        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} (-) {LinearDynamic(1).to_text()}")
-        self.assertIsInstance(combined_dynamic, BaseDynamic)
+        linear_dynamic = LinearDynamic(1)
+        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} (-) {LinearDynamic(2).to_text()}")
+        self.assertIsInstance(combined_dynamic, CombinedDynamic)
         created_task = Task(
             "Test task",
             "description",
@@ -185,5 +185,5 @@ class TestTask(unittest.TestCase):
         )
         with freeze_time(right_now + timedelta(days=1)):
             rendered_stress = created_task.get_rendered_stress()
-            expected_stress = base_stress + 1
+            expected_stress = base_stress + .5 # Because after 1 day, the first dynamic adds 1, and the second subtracts .5
             self.assertEqual(rendered_stress, expected_stress)

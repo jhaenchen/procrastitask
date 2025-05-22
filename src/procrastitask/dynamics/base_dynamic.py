@@ -116,4 +116,4 @@ class CombinedDynamic(BaseDynamic):
             result += f" {operator} {self.dynamics[i + 1].to_text()}"
         return result
 
-    prefixes = ["{dynamic} (+) {dynamic}", "{dynamic} (-) {dynamic}", "{dynamic} (|+) {dynamic}"]
+    prefixes = ["{dynamic} (+)/(-)/(|+) {dynamic}"]
