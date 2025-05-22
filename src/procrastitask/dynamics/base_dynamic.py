@@ -64,6 +64,24 @@ class BaseDynamic(ABC):
 
 
 class CombinedDynamic(BaseDynamic):
+    """
+    CombinedDynamic composes multiple BaseDynamic instances using specified operators.
+
+    This class allows combining several dynamic stress calculation strategies (subclasses of BaseDynamic)
+    using a sequence of operators, enabling complex, composable dynamic behaviors for tasks.
+
+    Args:
+        dynamics (List[BaseDynamic]): List of dynamic instances to combine. The order matters and should
+            correspond to the order in which operators are applied.
+        operators (List[str]): List of operators as strings, each of which must be one of:
+            '(+)'   - Add the next dynamic's difference to the running total.
+            '(-)'   - Subtract the next dynamic's difference from the running total.
+            '(|+)'  - Add the next dynamic's difference only if the previous difference is non-zero;
+                      otherwise, stop applying further operators.
+
+    Usage Example:
+        combined = CombinedDynamic.from_text("dynamicA (+) dynamicB (|+) dynamicC")
+    """
     def __init__(self, dynamics: List[BaseDynamic], operators: List[str]):
         self.dynamics = dynamics
         self.operators = operators
@@ -117,3 +135,4 @@ class CombinedDynamic(BaseDynamic):
         return result
 
     prefixes = ["{dynamic} (+)/(-)/(|+) {dynamic}"]
+
