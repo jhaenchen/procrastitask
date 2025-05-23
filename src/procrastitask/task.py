@@ -88,20 +88,28 @@ class Task:
                 next_time_to_complete = cron.get_next(datetime)
                 previous_time_to_complete = cron.get_prev(datetime)
                 interval = next_time_to_complete - previous_time_to_complete
-                buffer = interval * .10
+                buffer = interval * 0.10
                 reset_at = next_time_to_complete - buffer
 
-                if self.last_refreshed < (previous_time_to_complete - buffer):
+                # Use the latest completion time from history, if available
+                if self.history:
+                    last_completion_time = self.history[-1].completed_at
+                else:
+                    last_completion_time = None
+
+                if last_completion_time is None or last_completion_time < (previous_time_to_complete - buffer):
                     # We missed a chance, bump it to incomplete
                     return False
 
-                if self.last_refreshed >= reset_at:
+                if last_completion_time >= reset_at:
                     # Completed within the buffer period
                     return True
 
                 if datetime.now() > reset_at:
                     return False
                 return True
+            elif self.due_date_cron: # If there's no periodicity, but a due date cron, then it's never complete
+                return False
             return self._is_complete
         
         result = render_logic()
@@ -201,27 +209,22 @@ class Task:
     @property
     def current_due_date(self) -> Optional[datetime]:
         """
-        For cron-based due dates, returns the first due date (from creation_date to now) that does not have a corresponding completion record.
-        The matching is strictly one-to-one, in order, regardless of completion time.
+        For cron-based due dates, returns the first due date (from creation_date forward) that does not have a corresponding completion record.
+        Each completion record can satisfy any due date (past or future), one-to-one, in order.
         If all due dates are completed, returns the next due date.
         If only due_date is set, returns due_date.
         """
         if self.due_date_cron:
-            cron = croniter.croniter(self.due_date_cron, self.creation_date)
-            due_dates = []
-            next_due = cron.get_next(datetime)
-            while next_due <= datetime.now():
-                due_dates.append(next_due)
-                next_due = cron.get_next(datetime)
-            # Add the next future due date (for when all are completed)
-            due_dates.append(next_due)
             completions = sorted(self.history, key=lambda c: c.completed_at)
-            # Pair completions and due_dates in order
-            for i, due in enumerate(due_dates):
-                if i >= len(completions):
-                    return due
-            # All due dates are completed, return the next one
-            return due_dates[-1]
+            due_dates = []
+            cron_iter = croniter.croniter(self.due_date_cron, self.creation_date)
+            for _ in range(len(completions) + 1):
+                due_dates.append(cron_iter.get_next(datetime))
+            # Return the first due date without a corresponding completion
+            if len(completions) < len(due_dates):
+                return due_dates[len(completions)]
+            # If all completions used, return the next due date
+            return cron_iter.get_next(datetime)
         return self.due_date
 
     def is_due_soon(self):
