@@ -23,24 +23,28 @@ How to Run:
 
 You'll be presented with the command screen.
 
-Commands (enter the command and hit enter):
+## Command Reference
 
-```
-save: save changes
-load: reload tasks
-n: Create a new task
-e4 OR e1234-5678-9012: Edit the full details of task #4 in the list or the task with the ID 1234-5678-9012
-4: View the details of task #4 in the list
-d4: Delete (not complete) task #4 in the list
-x4: Complete task #4 in the list
-r: Refresh stress counts in the order of the least recently updated
-w: Help choose a task based on time availability and mental energy to spend
-cal4: Create a calendar event for task #4 in the list and open it in my Calendar app
-nn: Create a new task using vim to enter the details
-n3: Create a task that depends on task [3] being completed first
-p3: Create a task that task [3] depends on being completed first
-created: List the tasks that were most recently created
-```
+Below is a list of all available commands in the Procrastitask CLI, along with their descriptions:
+
+| Command                | Description                                                                                                 |
+|------------------------|-------------------------------------------------------------------------------------------------------------|
+| `save`                 | Save changes to the task database.                                                                          |
+| `load`                 | Reload tasks from the database.                                                                             |
+| `n`                    | Create a new task.                                                                                          |
+| `nn`                   | Create a new task using vim to enter the details.                                                           |
+| `n3`                   | Create a task that depends on task [3] being completed first.                                               |
+| `e4` or `e<ID>`        | Edit the full details of task #4 in the list or the task with the given ID.                                 |
+| `4`                    | View the details of task #4 in the list.                                                                    |
+| `d4`                   | Delete (not complete) task #4 in the list.                                                                  |
+| `x4`                   | Complete task #4 in the list.                                                                               |
+| `r`                    | Refresh stress counts in the order of the least recently updated.                                           |
+| `w`                    | Help choose a task based on time availability and mental energy to spend.                                   |
+| `cal4`                 | Create a calendar event for task #4 in the list and open it in the Calendar app (macOS only).               |
+| `p3`                   | Create a task that task [3] depends on being completed first.                                               |
+| `created`              | List the tasks that were most recently created.                                                             |
+
+**Note:** Replace numbers (e.g., `4`, `3`) with the appropriate task index or use the full task ID as needed.
 
 Let's walk through creating a task. I'll hit the key `n` and then hit the enter key.
 
