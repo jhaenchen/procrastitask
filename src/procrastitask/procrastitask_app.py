@@ -16,6 +16,8 @@ import croniter
 from procrastitask.dynamics.base_dynamic import BaseDynamic
 from procrastitask.task import Task, TaskStatus
 from procrastitask.task_collection import TaskCollection
+from procrastitask.dynamics.static_offset_dynamic import StaticOffsetDynamic
+from procrastitask.dynamics.combined_dynamic import CombinedDynamic
 
 
 
@@ -277,16 +279,37 @@ class App:
         """
         Change the stress of a task by an offset. This should apply to the rendered
         task stress rather than the base in the case of dynamics.
+        Uses StaticOffsetDynamic, and combines if needed.
         """
         found_task = self.find_task_by_any_id(task_identifier)
         if not found_task:
             raise ValueError(f"Task with identifier {task_identifier} not found.")
-        existing_stress = found_task.get_rendered_stress()
-        new_stress = existing_stress + offset
-        found_task.stress = new_stress
+        dynamic = found_task.stress_dynamic
+
+        def update_offset_in_combined(combined, offset):
+            for d in combined.dynamics:
+                if isinstance(d, StaticOffsetDynamic):
+                    d.offset += offset
+                    return True
+            return False
+
+        if dynamic is None:
+            found_task.stress_dynamic = StaticOffsetDynamic(offset)
+        elif isinstance(dynamic, StaticOffsetDynamic):
+            dynamic.offset += offset
+        elif isinstance(dynamic, CombinedDynamic):
+            if not update_offset_in_combined(dynamic, offset):
+                # Not found, add new StaticOffsetDynamic and operator
+                dynamic.dynamics.append(StaticOffsetDynamic(offset))
+                # Default to addition operator
+                dynamic.operators.append("(+)")
+        else:
+            # Some other dynamic: combine with StaticOffsetDynamic and operator
+            found_task.stress_dynamic = CombinedDynamic([dynamic, StaticOffsetDynamic(offset)], operators=["(+)"])
+
         found_task.update_last_refreshed()
         print(
-            f"Updating task stress for {found_task.title} from {existing_stress} -> {new_stress}"
+            f"Updated task stress dynamic for {found_task.title} (offset change: {offset})"
         )
 
     def get_numerical_prompt(
