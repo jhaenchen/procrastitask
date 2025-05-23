@@ -45,6 +45,7 @@ class Task:
     stress: int
     _is_complete: bool = False
     due_date: Optional[datetime] = None
+    due_date_cron: Optional[str] = None  # New: cron string for repeating due dates
     last_refreshed: datetime = field(default_factory=datetime.now)
     identifier: str = field(default_factory=lambda: str(uuid.uuid4()))
     dependent_on: List[int] = field(default_factory=lambda: [])
@@ -87,20 +88,28 @@ class Task:
                 next_time_to_complete = cron.get_next(datetime)
                 previous_time_to_complete = cron.get_prev(datetime)
                 interval = next_time_to_complete - previous_time_to_complete
-                buffer = interval * .10
+                buffer = interval * 0.10
                 reset_at = next_time_to_complete - buffer
 
-                if self.last_refreshed < (previous_time_to_complete - buffer):
+                # Use the latest completion time from history, if available
+                if self.history:
+                    last_completion_time = self.history[-1].completed_at
+                else:
+                    last_completion_time = None
+
+                if last_completion_time is None or last_completion_time < (previous_time_to_complete - buffer):
                     # We missed a chance, bump it to incomplete
                     return False
 
-                if self.last_refreshed >= reset_at:
+                if last_completion_time >= reset_at:
                     # Completed within the buffer period
                     return True
 
                 if datetime.now() > reset_at:
                     return False
                 return True
+            elif self.due_date_cron: # If there's no periodicity, but a due date cron, then it's never complete
+                return False
             return self._is_complete
         
         result = render_logic()
@@ -118,7 +127,7 @@ class Task:
             self._is_complete = val
             self.update_last_refreshed()
             if val == True:
-                self.history.append(CompletionRecord(self.last_refreshed, self.get_rendered_stress()))
+                self.history.append(CompletionRecord(self.last_refreshed, int(self.get_rendered_stress())))
             self.status = TaskStatus.COMPLETE if val else TaskStatus.INCOMPLETE
 
     @staticmethod
@@ -135,29 +144,62 @@ class Task:
             return timedelta(weeks=int(cool_down.split("m")[0]) * 4.345)
         raise ValueError(f"The set cool down str is not parseable: {cool_down}")
 
+    def get_dynamic_base_date(self):
+        """
+        Returns the correct base date for dynamic calculations, factoring in cool_down and periodicity.
+        - For cool_down: returns the most recent moment when the task became incomplete again based on the cool down.
+        - For periodicity: returns the most recent incomplete periodicity moment (cron boundary).
+        - Otherwise, returns last_refreshed or creation_date.
+        """
+        now = datetime.now()
+        # Handle periodicity (cron)
+        if self.periodicity:
+            cron = croniter.croniter(self.periodicity, now)
+            prev_period = cron.get_prev(datetime)
+            # If last completion is before the previous period, use prev_period
+            if self.history:
+                last_completion = self.history[-1].completed_at
+                if last_completion < prev_period:
+                    return prev_period
+                else:
+                    return last_completion
+            else:
+                return prev_period  # Use prev_period if no completions
+        # Handle cool_down
+        if self.cool_down:
+            if self.history:
+                last_completion = self.history[-1].completed_at
+                cooldown_delta = self.convert_cool_down_str_to_delta(self.cool_down)
+                cooldown_expiry = last_completion + cooldown_delta
+                if now > cooldown_expiry:
+                    return cooldown_expiry
+                else:
+                    return self.creation_date
+            else:
+                return self.creation_date
+        # Default: use last_refreshed or creation_date
+        return self.creation_date
+
     def get_rendered_stress(self):
         log.debug(f"Evaluating rendered stress for task {self.title}")
         base_stress = self.stress
         if not self.stress_dynamic:
             return round(base_stress, 1)
-        base_stress_date = self.last_refreshed
-        if self.periodicity:
-            cron = croniter.croniter(self.periodicity, datetime.now())
-            base_stress_date = cron.get_prev(datetime)
+        base_stress_date = self.get_dynamic_base_date()
         return round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
 
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()
     
-    def __key(self):
+    def _key(self):
         return (self.title, self.description)
 
     def __hash__(self):
-        return hash(self.__key())
+        return hash(self._key())
 
     def __eq__(self, other):
         if isinstance(other, Task):
-            return self.__key() == other.__key()
+            return self._key() == other._key()
         return NotImplemented
     
     @property
@@ -197,10 +239,32 @@ class Task:
                 count += 1
         return count
 
+    @property
+    def current_due_date(self) -> Optional[datetime]:
+        """
+        For cron-based due dates, returns the first due date (from creation_date forward) that does not have a corresponding completion record.
+        Each completion record can satisfy any due date (past or future), one-to-one, in order.
+        If all due dates are completed, returns the next due date.
+        If only due_date is set, returns due_date.
+        """
+        if self.due_date_cron:
+            completions = sorted(self.history, key=lambda c: c.completed_at)
+            due_dates = []
+            cron_iter = croniter.croniter(self.due_date_cron, self.creation_date)
+            for _ in range(len(completions) + 1):
+                due_dates.append(cron_iter.get_next(datetime))
+            # Return the first due date without a corresponding completion
+            if len(completions) < len(due_dates):
+                return due_dates[len(completions)]
+            # If all completions used, return the next due date
+            return cron_iter.get_next(datetime)
+        return self.due_date
+
     def is_due_soon(self):
-        if not self.due_date:
+        due = self.current_due_date
+        if not due:
             return False
-        due_in = self.due_date - datetime.now()
+        due_in = due - datetime.now()
         if due_in < timedelta(0):
             # Already due
             return True
@@ -210,10 +274,10 @@ class Task:
             return True
         return False
 
-    def get_date_str(self, datetime: datetime):
-        delta = datetime - datetime.now()
+    def get_date_str(self, dt: datetime):
+        delta = dt - datetime.now()
         if delta < timedelta(0):
-            return f"-{delta.days} days"
+            return f"-{abs(delta.days)} days"
         return f"{round(delta / timedelta(days=1), 2)} days"
 
     def pretty_print(self, all_tasks: List["Task"]):
@@ -249,7 +313,8 @@ class Task:
         return not saw_incomplete
 
     def headline(self):
-        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
+        due = self.current_due_date
+        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(due)) if due else ''})"
 
     def complete(self):
         self.update_last_refreshed()
@@ -265,6 +330,7 @@ class Task:
     @staticmethod
     def from_dict(incoming_dict):
         due_date = incoming_dict.get("due_date")
+        due_date_cron = incoming_dict.get("due_date_cron")
         last_refreshed = incoming_dict.get("last_refreshed")
         stress_dynamic = incoming_dict.get("stress_dynamic")
         creation_date = incoming_dict.get("creation_date")
@@ -277,6 +343,7 @@ class Task:
             stress=incoming_dict["stress"],
             difficulty=incoming_dict["difficulty"],
             due_date=datetime.fromisoformat(due_date) if due_date else None,
+            due_date_cron=due_date_cron,
             _is_complete=incoming_dict["is_complete"],
             last_refreshed=datetime.fromisoformat(last_refreshed)
             if last_refreshed
@@ -305,6 +372,7 @@ class Task:
             "difficulty": self.difficulty,
             "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
+            "due_date_cron": self.due_date_cron,
             "last_refreshed": self.last_refreshed.isoformat(),
             "identifier": self.identifier,
             "dependent_on": self.dependent_on,

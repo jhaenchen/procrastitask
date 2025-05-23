@@ -18,7 +18,9 @@ class LinearDynamic(BaseDynamic):
     interval: float
 
     def apply(self, last_updated_date: datetime, base_stress: int, task) -> float:
-        offset = (datetime.now() - last_updated_date).days / self.interval
+        # Use total seconds for sub-day precision
+        delta = (datetime.now() - last_updated_date)
+        offset = (delta.total_seconds() / 86400) / self.interval
         log.debug(f"Linear dynamic applied a bonus: {base_stress} + {offset}")
         return base_stress + offset
 

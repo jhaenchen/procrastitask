@@ -12,8 +12,10 @@ class LinearWithPeakDynamic(BaseDynamic):
     interval: float
     peak: int
 
-    def apply(self, creation_date: datetime, base_stress: int, task) -> float:
-        offset = (datetime.now() - creation_date).days / self.interval
+    def apply(self, last_updated_date: datetime, base_stress: int, task) -> float:
+        # Use total seconds for sub-day precision
+        delta = (datetime.now() - last_updated_date)
+        offset = (delta.total_seconds() / 86400) / self.interval
         return min(base_stress + offset, self.peak)
 
     _full_prefix = "dynamic-linear-day-peaked.{increase_per_x_days}.{max_stress}"

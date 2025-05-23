@@ -367,6 +367,7 @@ class App:
                 title = task_to_edit.title if task_to_edit else ""
                 description = task_to_edit.description if task_to_edit else ""
                 due_date = task_to_edit.due_date if task_to_edit else ""
+                due_date_cron = task_to_edit.due_date_cron if task_to_edit else ""
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
                 stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
@@ -402,6 +403,7 @@ class App:
                     title,
                     description,
                     due_date,
+                    due_date_cron,
                     difficulty,
                     stress,
                     duration,
@@ -417,6 +419,7 @@ class App:
                         "Title:": title,
                         "Description:": description,
                         "Due Date:": due_date,
+                        "Due Date Cron:": due_date_cron,
                         "Difficulty:": difficulty,
                         "Stress:": stress,
                         "Duration:": duration,
@@ -431,9 +434,8 @@ class App:
                 )
 
                 cool_down = self.interval_validator(cool_down)
-
                 periodicity = self.cron_validator(periodicity)
-
+                due_date_cron = self.cron_validator(due_date_cron)
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
                     self.find_task_by_any_id(el).identifier
@@ -479,17 +481,14 @@ class App:
                     task_to_edit.dependent_on = dependent_on
                     task_to_edit.duration = duration
                     task_to_edit.difficulty = difficulty
-
-                    # Real quick... if they changed the stress,
-                    # update the last_refreshed date too
                     if float(task_to_edit.get_rendered_stress()) != float(stress):
                         task_to_edit.last_refreshed = datetime.now()
-
                     task_to_edit.stress = stress
                     task_to_edit.is_complete = is_complete
                     task_to_edit.stress_dynamic = dynamic
                     task_to_edit.creation_date = creation_date
                     task_to_edit.due_date = due_date
+                    task_to_edit.due_date_cron = due_date_cron
                     task_to_edit.cool_down = cool_down
                     task_to_edit.periodicity = periodicity
                     task_to_edit.list_name = task_list_name
@@ -502,6 +501,7 @@ class App:
                     stress=stress,
                     difficulty=difficulty,
                     due_date=due_date,
+                    due_date_cron=due_date_cron,
                     dependent_on=dependent_on,
                     stress_dynamic=dynamic,
                     creation_date=creation_date,
@@ -555,6 +555,9 @@ class App:
         stress_level = self.get_numerical_prompt("Stress level: ")
         difficulty = self.get_numerical_prompt("Difficulty: ")
         date = self.get_date_prompt("Due date:")
+        due_date_cron = self.get_input_with_validation_mapper(
+            "Due date cron: ", self.cron_validator
+        )
         dependent_on = self.get_input_with_validation_mapper(
             "Dependent on tasks: ", self.dependence_validator
         )
@@ -575,6 +578,7 @@ class App:
             stress=stress_level,
             difficulty=difficulty,
             due_date=date,
+            due_date_cron=due_date_cron,
             dependent_on=dependent_on,
             stress_dynamic=dynamic,
             cool_down=cool_down,
