@@ -75,14 +75,11 @@ class TestTaskCollection(unittest.TestCase):
 
     def test_cron_stress_resets_at_interval_overlap(self):
         """
-        When you have a repeating task with a stress dynamic, the stress should be based on the last 
-        possible interval overlap rather than the last time you completed it.
+        When you have a repeating task with a stress dynamic, the stress should be based on the period immediately following the most recent completion (not the last time you completed it).
         """
-        right_now = datetime.now()
+        right_now = datetime(2025, 5, 18, 0, 0)  # Sunday
         base_stress = 10
         stress_added_per_day = 1
-         # Each day of the week we increase by stress_added_per_day. After one week, it should go back down to 0 and start again.
-        max_rendered_stress = base_stress + (7 * stress_added_per_day)
         created_task = Task(
             "Test task",
             "description",
@@ -94,9 +91,19 @@ class TestTaskCollection(unittest.TestCase):
             creation_date=right_now,
             last_refreshed=right_now,
         )
+        # Complete the task on the first Sunday
         with freeze_time(right_now):
+            created_task.complete()
             first_stress = created_task.get_rendered_stress()
-        with freeze_time(right_now + timedelta(days=28)): # Now skip forward 4 weeks. The stress should be less than the maximum.
-            second_stress = created_task.get_rendered_stress()
-            self.assertLess(second_stress, max_rendered_stress)
-        
+        # Move forward 4 weeks
+        with freeze_time(right_now + timedelta(days=28)):
+            from croniter import croniter
+            last_completion = created_task.history[-1].completed_at
+            next_period = croniter("0 0 * * 0", last_completion).get_next(datetime)
+            self.assertEqual(created_task.get_dynamic_base_date(), next_period)
+            # Calculate expected stress using LinearDynamic logic
+            delta_days = (right_now + timedelta(days=28) - next_period).total_seconds() / 86400
+            expected_stress = base_stress + (delta_days / stress_added_per_day)
+            actual_stress = created_task.get_rendered_stress()
+            self.assertAlmostEqual(actual_stress, expected_stress, places=2)
+

@@ -154,17 +154,13 @@ class Task:
         now = datetime.now()
         # Handle periodicity (cron)
         if self.periodicity:
-            cron = croniter.croniter(self.periodicity, now)
-            prev_period = cron.get_prev(datetime)
-            # If last completion is before the previous period, use prev_period
             if self.history:
                 last_completion = self.history[-1].completed_at
-                if last_completion < prev_period:
-                    return prev_period
-                else:
-                    return last_completion
+                cron = croniter.croniter(self.periodicity, last_completion)
+                next_period = cron.get_next(datetime)
+                return next_period
             else:
-                return prev_period  # Use prev_period if no completions
+                return self.creation_date
         # Handle cool_down
         if self.cool_down:
             if self.history:
