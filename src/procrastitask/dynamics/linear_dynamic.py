@@ -35,7 +35,9 @@ class LinearDynamic(BaseDynamic):
             prefix = BaseDynamic.get_cleaned_prefix(prefix)
             if prefix in text:
                 parts = text.split(prefix)
-        if parts is None:
+        if parts is None or len(parts) != 2 or parts[0] != "":
+            # If the prefix is not found, or if the text doesn't split into exactly two parts
+            # (the prefix and the interval), or if the first part is not empty
             raise ValueError(f"Invalid text repr: {text}")
 
         return LinearDynamic(interval=float(parts[-1:][0]))
