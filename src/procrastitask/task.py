@@ -144,15 +144,48 @@ class Task:
             return timedelta(weeks=int(cool_down.split("m")[0]) * 4.345)
         raise ValueError(f"The set cool down str is not parseable: {cool_down}")
 
+    def get_dynamic_base_date(self):
+        """
+        Returns the correct base date for dynamic calculations, factoring in cool_down and periodicity.
+        - For cool_down: returns the most recent moment when the task became incomplete again based on the cool down.
+        - For periodicity: returns the most recent incomplete periodicity moment (cron boundary).
+        - Otherwise, returns last_refreshed or creation_date.
+        """
+        now = datetime.now()
+        # Handle periodicity (cron)
+        if self.periodicity:
+            cron = croniter.croniter(self.periodicity, now)
+            prev_period = cron.get_prev(datetime)
+            # If last completion is before the previous period, use prev_period
+            if self.history:
+                last_completion = self.history[-1].completed_at
+                if last_completion < prev_period:
+                    return prev_period
+                else:
+                    return last_completion
+            else:
+                return prev_period  # Use prev_period if no completions
+        # Handle cool_down
+        if self.cool_down:
+            if self.history:
+                last_completion = self.history[-1].completed_at
+                cooldown_delta = self.convert_cool_down_str_to_delta(self.cool_down)
+                cooldown_expiry = last_completion + cooldown_delta
+                if now > cooldown_expiry:
+                    return cooldown_expiry
+                else:
+                    return self.creation_date
+            else:
+                return self.creation_date
+        # Default: use last_refreshed or creation_date
+        return self.creation_date
+
     def get_rendered_stress(self):
         log.debug(f"Evaluating rendered stress for task {self.title}")
         base_stress = self.stress
         if not self.stress_dynamic:
             return round(base_stress, 1)
-        base_stress_date = self.last_refreshed
-        if self.periodicity:
-            cron = croniter.croniter(self.periodicity, datetime.now())
-            base_stress_date = cron.get_prev(datetime)
+        base_stress_date = self.get_dynamic_base_date()
         return round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
 
     def update_last_refreshed(self):
