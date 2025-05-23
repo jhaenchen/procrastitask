@@ -45,6 +45,7 @@ class Task:
     stress: int
     _is_complete: bool = False
     due_date: Optional[datetime] = None
+    due_date_cron: Optional[str] = None  # New: cron string for repeating due dates
     last_refreshed: datetime = field(default_factory=datetime.now)
     identifier: str = field(default_factory=lambda: str(uuid.uuid4()))
     dependent_on: List[int] = field(default_factory=lambda: [])
@@ -118,7 +119,7 @@ class Task:
             self._is_complete = val
             self.update_last_refreshed()
             if val == True:
-                self.history.append(CompletionRecord(self.last_refreshed, self.get_rendered_stress()))
+                self.history.append(CompletionRecord(self.last_refreshed, int(self.get_rendered_stress())))
             self.status = TaskStatus.COMPLETE if val else TaskStatus.INCOMPLETE
 
     @staticmethod
@@ -149,15 +150,15 @@ class Task:
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()
     
-    def __key(self):
+    def _key(self):
         return (self.title, self.description)
 
     def __hash__(self):
-        return hash(self.__key())
+        return hash(self._key())
 
     def __eq__(self, other):
         if isinstance(other, Task):
-            return self.__key() == other.__key()
+            return self._key() == other._key()
         return NotImplemented
     
     @property
@@ -197,10 +198,37 @@ class Task:
                 count += 1
         return count
 
+    @property
+    def current_due_date(self) -> Optional[datetime]:
+        """
+        For cron-based due dates, returns the first due date (from creation_date to now) that does not have a corresponding completion record.
+        The matching is strictly one-to-one, in order, regardless of completion time.
+        If all due dates are completed, returns the next due date.
+        If only due_date is set, returns due_date.
+        """
+        if self.due_date_cron:
+            cron = croniter.croniter(self.due_date_cron, self.creation_date)
+            due_dates = []
+            next_due = cron.get_next(datetime)
+            while next_due <= datetime.now():
+                due_dates.append(next_due)
+                next_due = cron.get_next(datetime)
+            # Add the next future due date (for when all are completed)
+            due_dates.append(next_due)
+            completions = sorted(self.history, key=lambda c: c.completed_at)
+            # Pair completions and due_dates in order
+            for i, due in enumerate(due_dates):
+                if i >= len(completions):
+                    return due
+            # All due dates are completed, return the next one
+            return due_dates[-1]
+        return self.due_date
+
     def is_due_soon(self):
-        if not self.due_date:
+        due = self.current_due_date
+        if not due:
             return False
-        due_in = self.due_date - datetime.now()
+        due_in = due - datetime.now()
         if due_in < timedelta(0):
             # Already due
             return True
@@ -210,10 +238,10 @@ class Task:
             return True
         return False
 
-    def get_date_str(self, datetime: datetime):
-        delta = datetime - datetime.now()
+    def get_date_str(self, dt: datetime):
+        delta = dt - datetime.now()
         if delta < timedelta(0):
-            return f"-{delta.days} days"
+            return f"-{abs(delta.days)} days"
         return f"{round(delta / timedelta(days=1), 2)} days"
 
     def pretty_print(self, all_tasks: List["Task"]):
@@ -249,7 +277,8 @@ class Task:
         return not saw_incomplete
 
     def headline(self):
-        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(self.due_date)) if self.due_date else ''})"
+        due = self.current_due_date
+        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(due)) if due else ''})"
 
     def complete(self):
         self.update_last_refreshed()
@@ -265,6 +294,7 @@ class Task:
     @staticmethod
     def from_dict(incoming_dict):
         due_date = incoming_dict.get("due_date")
+        due_date_cron = incoming_dict.get("due_date_cron")
         last_refreshed = incoming_dict.get("last_refreshed")
         stress_dynamic = incoming_dict.get("stress_dynamic")
         creation_date = incoming_dict.get("creation_date")
@@ -277,6 +307,7 @@ class Task:
             stress=incoming_dict["stress"],
             difficulty=incoming_dict["difficulty"],
             due_date=datetime.fromisoformat(due_date) if due_date else None,
+            due_date_cron=due_date_cron,
             _is_complete=incoming_dict["is_complete"],
             last_refreshed=datetime.fromisoformat(last_refreshed)
             if last_refreshed
@@ -305,6 +336,7 @@ class Task:
             "difficulty": self.difficulty,
             "is_complete": self.is_complete,
             "due_date": self.due_date.isoformat() if self.due_date else self.due_date,
+            "due_date_cron": self.due_date_cron,
             "last_refreshed": self.last_refreshed.isoformat(),
             "identifier": self.identifier,
             "dependent_on": self.dependent_on,

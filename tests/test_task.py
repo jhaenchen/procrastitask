@@ -6,6 +6,7 @@ from procrastitask.dynamics.step_due_date_dynamic import StepDueDateDynamic
 from procrastitask.dynamics.base_dynamic import BaseDynamic
 from procrastitask.task import Task, TaskStatus, CompletionRecord
 from freezegun import freeze_time
+import pytest
 
 
 class TestTask(unittest.TestCase):
@@ -142,3 +143,76 @@ class TestTask(unittest.TestCase):
         self.assertEqual(len(created_task.history), 2)
         self.assertEqual(created_task.history[1].completed_at, right_now + timedelta(hours=0.5))
         self.assertEqual(created_task.history[1].stress_at_completion, 10)
+
+    def make_task_with_cron(self, creation, cron, completions=None):
+        t = Task(
+            title="Test",
+            description="desc",
+            difficulty=1,
+            duration=60,
+            stress=1,
+            due_date_cron=cron,
+            creation_date=creation,
+        )
+        t.history = completions or []
+        return t
+
+    def test_no_completions_returns_first_due(self):
+        creation = datetime(2025, 5, 20, 8, 0)
+        cron = "0 8 * * *"  # every day at 8am
+        task = self.make_task_with_cron(creation, cron)
+        due = task.current_due_date
+        self.assertIsNotNone(due)
+        if due is not None:
+            self.assertEqual(due.date(), datetime(2025, 5, 21, 8, 0).date())
+
+    def test_one_completion_returns_second_due(self):
+        creation = datetime(2025, 5, 20, 8, 0)
+        cron = "0 8 * * *"
+        first_due = datetime(2025, 5, 21, 8, 0)
+        second_due = datetime(2025, 5, 22, 8, 0)
+        comp = CompletionRecord(completed_at=first_due + timedelta(hours=1), stress_at_completion=1)
+        task = self.make_task_with_cron(creation, cron, [comp])
+        due = task.current_due_date
+        self.assertIsNotNone(due)
+        if due is not None:
+            self.assertEqual(due.date(), second_due.date())
+
+    def test_completion_before_due_still_counts(self):
+        creation = datetime(2025, 5, 20, 8, 0)
+        cron = "0 8 * * *"
+        first_due = datetime(2025, 5, 21, 8, 0)
+        comp = CompletionRecord(completed_at=first_due - timedelta(hours=2), stress_at_completion=1)
+        task = self.make_task_with_cron(creation, cron, [comp])
+        due = task.current_due_date
+        self.assertIsNotNone(due)
+        if due is not None:
+            self.assertEqual(due.date(), datetime(2025, 5, 22, 8, 0).date())
+
+    def test_fewer_completions_than_due_dates(self):
+        creation = datetime(2025, 5, 19, 8, 0)
+        cron = "0 8 * * *"
+        # Due dates: 2025-05-20, 2025-05-21, 2025-05-22
+        completions = [
+            CompletionRecord(completed_at=datetime(2025, 5, 20, 9, 0), stress_at_completion=1),
+            CompletionRecord(completed_at=datetime(2025, 5, 21, 7, 0), stress_at_completion=1),
+        ]
+        task = self.make_task_with_cron(creation, cron, completions)
+        due = task.current_due_date
+        self.assertIsNotNone(due)
+        if due is not None:
+            self.assertEqual(due.date(), datetime(2025, 5, 22, 8, 0).date())
+
+    def test_more_completions_than_due_dates(self):
+        creation = datetime(2025, 5, 20, 8, 0)
+        cron = "0 8 * * *"
+        # Only one due date before now, but two completions
+        completions = [
+            CompletionRecord(completed_at=datetime(2025, 5, 21, 8, 0), stress_at_completion=1),
+            CompletionRecord(completed_at=datetime(2025, 5, 22, 8, 0), stress_at_completion=1),
+        ]
+        task = self.make_task_with_cron(creation, cron, completions)
+        next_due = task.current_due_date
+        self.assertIsNotNone(next_due)
+        if next_due is not None:
+            self.assertTrue(next_due > datetime.now())
