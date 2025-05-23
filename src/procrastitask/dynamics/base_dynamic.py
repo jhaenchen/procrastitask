@@ -34,6 +34,7 @@ class BaseDynamic(ABC):
         from .step_due_date_dynamic import StepDueDateDynamic
         from .location_dynamic import LocationDynamic
         from .combined_dynamic import CombinedDynamic
+        from .static_offset_dynamic import StaticOffsetDynamic
         all_dynamics = []
         for class_obj in BaseDynamic.__subclasses__():
             all_dynamics.append(class_obj)
