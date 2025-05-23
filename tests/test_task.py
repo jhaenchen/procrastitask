@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 import unittest
+from procrastitask.dynamics.combined_dynamic import CombinedDynamic
 from procrastitask.dynamics.linear_dynamic import LinearDynamic
 from procrastitask.dynamics.step_due_date_dynamic import StepDueDateDynamic
-from procrastitask.dynamics.base_dynamic import BaseDynamic, CombinedDynamic
+from procrastitask.dynamics.base_dynamic import BaseDynamic
 from procrastitask.task import Task, TaskStatus, CompletionRecord
 from freezegun import freeze_time
 
@@ -141,49 +142,3 @@ class TestTask(unittest.TestCase):
         self.assertEqual(len(created_task.history), 2)
         self.assertEqual(created_task.history[1].completed_at, right_now + timedelta(hours=0.5))
         self.assertEqual(created_task.history[1].stress_at_completion, 10)
-
-    def test_combined_dynamic_addition(self):
-        right_now = datetime.now()
-        base_stress = 10
-        linear_dynamic = LinearDynamic(1)
-        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} (+) {linear_dynamic.to_text()}")
-        self.assertIsInstance(combined_dynamic, CombinedDynamic)
-        created_task = Task(
-            "Test task",
-            "description",
-            10,
-            10,
-            stress=base_stress,
-            periodicity=None,
-            stress_dynamic=combined_dynamic,
-            creation_date=right_now,
-            last_refreshed=right_now,
-            due_date=right_now + timedelta(days=5)
-        )
-        with freeze_time(right_now + timedelta(days=1)):
-            rendered_stress = created_task.get_rendered_stress()
-            expected_stress = base_stress + 2
-            self.assertEqual(rendered_stress, expected_stress)
-
-    def test_combined_dynamic_subtraction(self):
-        right_now = datetime.now()
-        base_stress = 10
-        linear_dynamic = LinearDynamic(1)
-        combined_dynamic = BaseDynamic.find_dynamic(f"{linear_dynamic.to_text()} (-) {LinearDynamic(2).to_text()}")
-        self.assertIsInstance(combined_dynamic, CombinedDynamic)
-        created_task = Task(
-            "Test task",
-            "description",
-            10,
-            10,
-            stress=base_stress,
-            periodicity=None,
-            stress_dynamic=combined_dynamic,
-            creation_date=right_now,
-            last_refreshed=right_now,
-            due_date=right_now + timedelta(days=5)
-        )
-        with freeze_time(right_now + timedelta(days=1)):
-            rendered_stress = created_task.get_rendered_stress()
-            expected_stress = base_stress + .5 # Because after 1 day, the first dynamic adds 1, and the second subtracts .5
-            self.assertEqual(rendered_stress, expected_stress)
