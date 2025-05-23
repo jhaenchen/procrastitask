@@ -32,16 +32,18 @@ class LocationDynamic(BaseDynamic):
 
     _full_prefix = "dynamic-location/{latitude}/{longitude}/{radius}"
 
-    prefixes = [_full_prefix, "location/"]
+    @staticmethod
+    def prefixes() -> list[str]:
+        return [LocationDynamic._full_prefix, "location/"]
 
     @staticmethod
     def from_text(text: str) -> "LocationDynamic":
         parts = None
-        for prefix in LocationDynamic.prefixes:
+        for prefix in LocationDynamic.prefixes():
             prefix = BaseDynamic.get_cleaned_prefix(prefix)
             if prefix in text:
                 parts = text.split(prefix)
-        if parts is None:
+        if parts is None or len(parts) != 2 or parts[0] != "":
             raise ValueError(f"Invalid text repr: {text}")
 
         parts = parts[-1:][0].split("/")
