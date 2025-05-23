@@ -80,6 +80,50 @@ In the file:
 db_location:/put/a/directory/path/
 ```
 
+## Task Features & Capabilities
+
+A task in Procrastitask supports a wide range of features to help you manage your work and priorities:
+
+- **Basic Properties**:
+  - **Title**: The name of your task.
+  - **Description**: Optional details about the task.
+  - **Difficulty**: Integer value representing how hard the task is to complete.
+  - **Stress**: Integer value for how much anxiety or urgency the task causes.
+  - **Duration**: Estimated time (in minutes) to complete the task.
+  - **List Name**: Organize tasks into different lists.
+
+- **Due Dates & Scheduling**:
+  - **Due Date**: Set a specific due date for the task.
+  - **Due Date (Cron)**: Use cron syntax to set recurring due dates (e.g., every Monday).
+  - **Periodicity**: Use cron syntax to make a task repeat at regular intervals. The task will become incomplete again at each interval.
+  - **Cool Down**: After completion, the task will reappear after a specified cooldown (e.g., 2d, 1w, 30min).
+
+- **Completion & History**:
+  - **Mark Complete/Incomplete**: Mark tasks as complete or incomplete. Tasks with periodicity or cooldowns can become incomplete again automatically.
+  - **Completion History**: Each completion is recorded with a timestamp and stress value at completion.
+  - **Automatic Status**: Task status updates automatically based on periodicity, cooldown, and completion history.
+
+- **Dynamic Stress & Ranking**:
+  - **Dynamic Stress**: Attach a dynamic function to a task to make its stress value change over time (e.g., increase every X days, location-based, or custom dynamics).
+  - **Smart Ranking**: Tasks are ranked by stress, difficulty, and due date proximity. Due soon tasks get a stress bonus.
+
+- **Dependencies**:
+  - **Dependent On**: Specify other tasks that must be completed before this one.
+  - **Dependents**: See which tasks depend on the current task.
+  - **Dependency Checks**: Tasks can only be completed if their dependencies are complete.
+
+- **Calendar Integration**:
+  - **Create Calendar Event**: Instantly create and open a calendar event for a task (macOS only).
+
+- **Other Features**:
+  - **Location-Based Dynamics**: Adjust stress based on your current location.
+  - **Automatic Refresh**: Task priorities and stress values refresh automatically based on time and completion.
+  - **Custom Config & Backup**: Store your task database in a custom location (e.g., Dropbox, iCloud).
+
+See below for details on commands and how to use these features in practice.
+
+---
+
 ### Future features:
 
 * More dynamics: linear-with-cap, gaussian, gaussian-with-shelf, peak-at-due-time
