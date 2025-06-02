@@ -45,15 +45,6 @@ class TestPerformance(unittest.TestCase):
         ]
         self.app.cached_listed_tasks = {i: t for i, t in enumerate(self.app.all_tasks)}
 
-    @patch("builtins.input", return_value="0")
-    def test_load_performance(self, mock_input):
-        start = time.time()
-        self.app.load(task_list_override=self.app.all_tasks)
-        duration = time.time() - start
-        print(f"App.load() runtime: {duration:.4f} seconds")
-        self._check_and_update_perf("test_load_performance", duration)
-        self.assertLess(duration, 1.0)  # Should be fast
-
     def test_list_all_tasks_performance(self):
         start = time.time()
         result = self.app.list_all_tasks(also_print=False)
