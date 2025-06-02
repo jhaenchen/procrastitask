@@ -48,10 +48,12 @@ class BaseDynamic(ABC):
         return all_prefixes
 
     @staticmethod
-    def find_dynamic(text: str) -> Optional["BaseDynamic"]:
+    def find_dynamic(text: str, exclude: Optional[type["BaseDynamic"]] = None) -> Optional["BaseDynamic"]:
         all_dynamics = BaseDynamic.get_all_dynamics()
 
         for class_obj in all_dynamics:
+            if class_obj == exclude:
+                continue
             try:
                 return class_obj.from_text(text)
             except:

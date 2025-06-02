@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from procrastitask.dynamics.base_dynamic import BaseDynamic
 from procrastitask.dynamics.combined_dynamic import CombinedDynamic
 from procrastitask.dynamics.linear_dynamic import LinearDynamic
+from procrastitask.dynamics.static_offset_dynamic import StaticOffsetDynamic
 from procrastitask.task import Task
 from freezegun import freeze_time
 
@@ -47,6 +48,30 @@ class TestCombinedDynamic(unittest.TestCase):
         result = c.apply(datetime.now(), 100, None)
         expected = 100 + d0.value + d1.value
         self.assertEqual(result, expected)
+
+    def test_combined_dynamic_static_offset(self):
+        right_now = datetime.now()
+        base_stress = 10
+        static_offset_dynamic = StaticOffsetDynamic(offset=1)
+        other_static_offset_dynamic = StaticOffsetDynamic(offset=2)
+        combined_dynamic = BaseDynamic.find_dynamic(f"{static_offset_dynamic.to_text()} (+) {other_static_offset_dynamic.to_text()}")
+        self.assertIsInstance(combined_dynamic, CombinedDynamic)
+        created_task = Task(
+            "Test task",
+            "description",
+            10,
+            10,
+            stress=base_stress,
+            periodicity=None,
+            stress_dynamic=combined_dynamic,
+            creation_date=right_now,
+            last_refreshed=right_now,
+            due_date=right_now + timedelta(days=5)
+        )
+        with freeze_time(right_now + timedelta(days=1)):
+            rendered_stress = created_task.get_rendered_stress()
+            expected_stress = base_stress + 3
+            self.assertEqual(rendered_stress, expected_stress)
 
     def test_combined_dynamic_addition(self):
         right_now = datetime.now()

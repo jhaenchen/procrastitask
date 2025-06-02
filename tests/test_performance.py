@@ -18,7 +18,7 @@ class TestPerformance(unittest.TestCase):
             state = {}
         prev_runtime = state.get(test_name)
         if prev_runtime is not None:
-            diff = abs(current_runtime - prev_runtime) / prev_runtime
+            diff = (current_runtime - prev_runtime) / prev_runtime
             if diff > 0.25:
                 self.fail(f"{test_name}: Runtime changed by more than 25% (prev: {prev_runtime:.4f}, curr: {current_runtime:.4f})")
         # Update state

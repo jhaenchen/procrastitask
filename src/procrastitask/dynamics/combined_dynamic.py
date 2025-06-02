@@ -64,7 +64,7 @@ class CombinedDynamic(BaseDynamic):
             if part in ['(+)', '(-)', '(|+)']:
                 operators.append(part)
             else:
-                dynamics.append(BaseDynamic.find_dynamic(part))
+                dynamics.append(BaseDynamic.find_dynamic(part, exclude=CombinedDynamic))
         if not dynamics or not operators:
             raise ValueError(f"Invalid dynamic string with operators: {text}")
         return CombinedDynamic(dynamics, operators)
