@@ -5,6 +5,16 @@ from procrastitask.task import Task
 from unittest.mock import patch
 
 class TestPerformance(unittest.TestCase):
+    @patch("builtins.input", return_value="0")
+    def test_main_path(self, _):
+        start = time.time()
+        app = App()
+        app.load()
+        app.list_all_tasks(also_print=False)
+        duration = time.time() - start
+        print(f"Total runtime: {duration:.4f} seconds")
+        self.assertLess(duration, 5.0)
+
     def setUp(self):
         self.app = App()
         # Add some tasks for testing
