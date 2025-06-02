@@ -2,10 +2,13 @@ import unittest
 import time
 import os
 import json
+from unittest import mock
 from procrastitask.procrastitask_app import App
 from procrastitask.task import Task
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+
+@mock.patch("os.system", new=MagicMock())
 class TestPerformance(unittest.TestCase):
     PERF_STATE_FILE = os.path.join(os.path.dirname(__file__), "perf_state.json")
 
