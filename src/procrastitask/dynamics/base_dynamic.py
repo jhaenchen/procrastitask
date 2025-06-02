@@ -14,12 +14,9 @@ class BaseDynamic(ABC):
     def to_text(self: "BaseDynamic") -> str:
         raise NotImplementedError()
     
-    @staticmethod
+    @property
     @abstractmethod
-    def prefixes() -> List[str]:
-        """
-        Must be implemented by subclasses as a static method returning a list of prefixes.
-        """
+    def prefixes(self) -> List[str]:
         raise NotImplementedError()
     
     @staticmethod
@@ -47,7 +44,7 @@ class BaseDynamic(ABC):
     def get_all_prefixes() -> List[str]:
         all_prefixes: List[str] = []
         for class_obj in BaseDynamic.get_all_dynamics():
-            all_prefixes.extend(class_obj.prefixes())
+            all_prefixes.extend(class_obj.prefixes)
         return all_prefixes
 
     @staticmethod

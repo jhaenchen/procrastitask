@@ -27,10 +27,6 @@ class CombinedDynamic(BaseDynamic):
         self.dynamics = dynamics
         self.operators = operators
 
-    @staticmethod
-    def prefixes() -> list[str]:
-        return ["{dynamic} (+)/(-)/(|+) {dynamic}"]
-
     def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
         prev_diff = self.dynamics[0].apply(creation_date, base_stress, task) - base_stress
         diff = prev_diff
@@ -78,3 +74,5 @@ class CombinedDynamic(BaseDynamic):
         for i, operator in enumerate(self.operators):
             result += f" {operator} {self.dynamics[i + 1].to_text()}"
         return result
+
+    prefixes = ["{dynamic} (+)/(-)/(|+) {dynamic}"]
