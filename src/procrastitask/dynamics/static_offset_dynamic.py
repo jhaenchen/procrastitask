@@ -10,9 +10,9 @@ class StaticOffsetDynamic(BaseDynamic):
 
     @staticmethod
     def from_text(text: str) -> "StaticOffsetDynamic":
-        # Expected format: "static-offset.{integer}"
+        # Expected format: "static-offset.{integer}", including negative numbers
         import re
-        match = re.fullmatch(r"static-offset\.(\d+)", text)
+        match = re.fullmatch(r"static-offset\.(-?\d+)", text)
         if not match:
             raise ValueError(f"Invalid static-offset dynamic format: {text}")
         offset = int(match.group(1))
@@ -22,7 +22,7 @@ class StaticOffsetDynamic(BaseDynamic):
         return f"static-offset.{int(self.offset)}"
 
     def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
-        return base_stress + self.offset
+        return max(base_stress + self.offset, 0)
 
     @property
     def prefixes(self) -> List[str]:

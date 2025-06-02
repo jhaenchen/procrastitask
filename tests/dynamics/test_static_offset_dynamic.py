@@ -17,6 +17,22 @@ class TestStaticOffsetDynamic(unittest.TestCase):
         result = dyn.apply(creation_date, base_stress, task)
         self.assertEqual(result, 15)
 
+    def test_does_not_go_below_zero(self):
+        dyn = StaticOffsetDynamic(-10)
+        base_stress = 5
+        creation_date = datetime.now()
+        task = DummyTask()
+        result = dyn.apply(creation_date, base_stress, task)
+        self.assertEqual(result, 0)
+
+    def test_to_text_and_from_text_negative_offset(self):
+        dyn = StaticOffsetDynamic(-3)
+        text = dyn.to_text()
+        self.assertEqual(text, "static-offset.-3")
+        dyn2 = StaticOffsetDynamic.from_text(text)
+        self.assertIsInstance(dyn2, StaticOffsetDynamic)
+        self.assertEqual(dyn2.offset, -3)
+
     def test_to_text_and_from_text(self):
         dyn = StaticOffsetDynamic(7)
         text = dyn.to_text()
