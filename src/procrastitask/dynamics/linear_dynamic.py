@@ -26,12 +26,14 @@ class LinearDynamic(BaseDynamic):
 
     _full_prefix = "dynamic-linear-day.{increase_per_x_days}"
 
-    prefixes = [_full_prefix, "linear-day.", "dynamic-linear-day-"]
+    @staticmethod
+    def prefixes() -> list[str]:
+        return [LinearDynamic._full_prefix, "linear-day.", "dynamic-linear-day-"]
 
     @staticmethod
     def from_text(text: str) -> "LinearDynamic":
         parts = None
-        for prefix in LinearDynamic.prefixes:
+        for prefix in LinearDynamic.prefixes():
             prefix = BaseDynamic.get_cleaned_prefix(prefix)
             if prefix in text:
                 parts = text.split(prefix)
@@ -40,7 +42,7 @@ class LinearDynamic(BaseDynamic):
             # (the prefix and the interval), or if the first part is not empty
             raise ValueError(f"Invalid text repr: {text}")
 
-        return LinearDynamic(interval=float(parts[-1:][0]))
+        return LinearDynamic(interval=float(parts[1]))
 
     def to_text(self):
         return f"dynamic-linear-day-{self.interval}"

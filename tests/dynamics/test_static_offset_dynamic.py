@@ -54,4 +54,4 @@ class TestStaticOffsetDynamic(unittest.TestCase):
             StaticOffsetDynamic.from_text("otherprefix.7")
 
     def test_prefixes(self):
-        self.assertIn("static-offset.", StaticOffsetDynamic(0).prefixes)
+        self.assertIn("static-offset.", StaticOffsetDynamic.prefixes())

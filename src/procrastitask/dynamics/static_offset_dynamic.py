@@ -24,6 +24,6 @@ class StaticOffsetDynamic(BaseDynamic):
     def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
         return max(base_stress + self.offset, 0)
 
-    @property
-    def prefixes(self) -> List[str]:
+    @staticmethod
+    def prefixes() -> list[str]:
         return ["static-offset."]
