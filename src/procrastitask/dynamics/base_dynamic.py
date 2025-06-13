@@ -59,7 +59,7 @@ class BaseDynamic(ABC):
                 continue
             try:
                 return class_obj.from_text(text)
-            except:
+            except (ValueError, TypeError, AttributeError):
                 pass
         if text:
             raise ValueError(f"Provided dynamic text {text} could not be matched to a dynamic. Available: {BaseDynamic.get_all_prefixes()}")

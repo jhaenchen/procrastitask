@@ -15,6 +15,7 @@ coverage = "*"
 types-croniter = "*"
 procrastitask = {file = ".", editable = true}
 freezegun = "*"
+exceptiongroup = "*"
 
 [scripts]
 test = "pytest"

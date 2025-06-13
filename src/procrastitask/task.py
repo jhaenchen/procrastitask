@@ -62,6 +62,21 @@ class Task:
         if floated.is_integer():
             return int(floated)
         return round(floated, 1)
+    
+    def _get_next_cool_down_reset_date(self) -> Optional[datetime]:
+        """
+        Returns the next cool down reset date based on the current time, the cool down string, and the most recent completion record.
+        If no cool down is set, returns None.
+        """
+        if not self.cool_down:
+            return None
+        if not self.history:
+            return None
+        last_completion = self.history[-1].completed_at
+        cool_down_delta = self.convert_cool_down_str_to_delta(self.cool_down)
+        next_reset = last_completion + (cool_down_delta * .9)  # 90% of the cool down period
+        return next_reset
+        
 
     @property
     def is_complete(self):
@@ -74,15 +89,15 @@ class Task:
                 return self._is_complete
             if self.cool_down:
                 log.debug("Cool down is configured. Let's evaluate.")
-                if self.history:
-                    time_since_last_completion = datetime.now() - self.history[-1].completed_at
-                else:
-                    time_since_last_completion = datetime.now() - self.last_refreshed
-                expected_interval = self.convert_cool_down_str_to_delta(self.cool_down)
-                log.debug(f"The specified interval is {expected_interval}, it's been {time_since_last_completion}")
-                if time_since_last_completion > (expected_interval * .9):
-                    return False
-                return True
+                next_reset = self._get_next_cool_down_reset_date()
+                if next_reset:
+                    if datetime.now() < next_reset:
+                        log.debug(f"Next reset is {next_reset}, which is in the future. Task is still complete.")
+                        return True
+                    else:
+                        log.debug(f"Next reset is {next_reset}, which is in the past. Task is incomplete.")
+                        return False
+                return self._is_complete
             if self.periodicity:
                 cron = croniter.croniter(self.periodicity, datetime.now())
                 next_time_to_complete = cron.get_next(datetime)
@@ -164,13 +179,16 @@ class Task:
         # Handle cool_down
         if self.cool_down:
             if self.history:
-                last_completion = self.history[-1].completed_at
-                cooldown_delta = self.convert_cool_down_str_to_delta(self.cool_down)
-                cooldown_expiry = last_completion + cooldown_delta
-                if now > cooldown_expiry:
-                    return cooldown_expiry
-                else:
-                    return self.creation_date
+                next_cool_down_date = self._get_next_cool_down_reset_date()
+                if next_cool_down_date:
+                    log.debug(f"Next cool down reset date for task {self.title} is {next_cool_down_date}.")
+                    return next_cool_down_date
+                log.debug(f"No next cool down reset date found for task {self.title}, using last completion date.")
+                # If no next cool down reset date, use the last completion date
+                # to determine the base date for dynamic calculations
+                # This is the last completion date, which is the most recent time the task was completed
+                # and is now in a cool down period.
+                return self.history[-1].completed_at
             else:
                 return self.creation_date
         # Default: use last_refreshed or creation_date

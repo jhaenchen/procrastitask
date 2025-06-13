@@ -23,7 +23,9 @@ class TestTaskDynamicBaseDate(unittest.TestCase):
         task.history = [CompletionRecord(completed_at=right_now - timedelta(hours=3), stress_at_completion=5)]
         with freeze_time(right_now):
             base_date = task.get_dynamic_base_date()
-            self.assertEqual(base_date, task.history[-1].completed_at + timedelta(hours=1))
+            # Should be last completion + 0.9 * cool_down (54 minutes)
+            expected_base_date = task.history[-1].completed_at + timedelta(minutes=54)
+            self.assertEqual(base_date, expected_base_date)
             # LinearDynamic should use this base date
             stress = task.get_rendered_stress()
             self.assertGreater(stress, 5)

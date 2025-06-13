@@ -60,7 +60,7 @@ class CombinedDynamic(BaseDynamic):
         # Remove empty strings from split
         parts = [p for p in parts if p.strip() != '']
         if len(parts) == 1:
-            return BaseDynamic.find_dynamic(parts[0])
+            return BaseDynamic.find_dynamic(parts[0], exclude=CombinedDynamic)
         dynamics = []
         operators = []
         for part in parts:

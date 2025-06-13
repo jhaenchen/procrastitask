@@ -227,3 +227,52 @@ class TestTask(unittest.TestCase):
         # The next due date may be in the past if all completions and due dates are in the past
         # So just check that it's a datetime object
         self.assertIsInstance(next_due, datetime)
+
+    def test_find_dependents(self):
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 5, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 5, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3]
+        dependents = t1.find_dependents(all_tasks)
+        self.assertEqual(set(d.identifier for d in dependents), set([t2.identifier, t3.identifier]))
+
+    def test_dependent_tasks_complete(self):
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 5)
+        t3 = Task("C", "desc", 1, 10, 5)
+        t3.dependent_on = [t1.identifier, t2.identifier]
+        all_tasks = [t1, t2, t3]
+        t1.is_complete = True
+        t2.is_complete = False
+        self.assertFalse(t3.dependent_tasks_complete(all_tasks))
+        t2.is_complete = True
+        self.assertTrue(t3.dependent_tasks_complete(all_tasks))
+
+    def test_headline_format(self):
+        t = Task("HeadlineTest", "desc", 3, 45, 7)
+        headline = t.headline()
+        self.assertIn("HeadlineTest", headline)
+        self.assertIn("45min", headline)
+        self.assertIn("stress: 7", headline)
+        self.assertIn("diff: 3", headline)
+
+    def test_get_next_cool_down_reset_date_and_is_complete(self):
+        right_now = datetime.now()
+        t = Task("CoolDownTest", "desc", 1, 10, 5, cool_down="2hr")
+        t.complete()
+        next_reset = t._get_next_cool_down_reset_date()
+        self.assertIsNotNone(next_reset)
+        self.assertAlmostEqual((next_reset - right_now).total_seconds(), 2*3600*0.9, delta=2)
+        # is_complete should be True before next_reset, False after
+        with freeze_time(right_now + timedelta(minutes=50)):
+            self.assertTrue(t.is_complete)
+        with freeze_time(right_now + timedelta(minutes=140)):
+            self.assertFalse(t.is_complete)
+
+    def test_get_dynamic_base_date_with_cool_down(self):
+        right_now = datetime.now()
+        t = Task("BaseDateCoolDown", "desc", 1, 10, 5, cool_down="1hr")
+        t.history.append(CompletionRecord(completed_at=right_now, stress_at_completion=5))
+        base_date = t.get_dynamic_base_date()
+        self.assertIsNotNone(base_date)
+        self.assertAlmostEqual((base_date - right_now).total_seconds(), 3600*0.9, delta=2)
