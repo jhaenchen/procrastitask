@@ -1,3 +1,5 @@
+import cProfile
+import pstats
 from configparser import ConfigParser, NoSectionError
 import json
 import math
@@ -918,9 +920,17 @@ class App:
 
 
 if __name__ == "__main__":
+    profiler = cProfile.Profile()
+    profiler.enable()
+
     os.system("clear")
     app = App()
     app.load()
     app.paged_task_list()
-    while True:
-        app.display_home()
+    app.display_home()
+
+    profiler.disable()
+    stats = pstats.Stats(profiler)
+    stats.strip_dirs()
+    stats.sort_stats("cumulative")  # Options: 'time', 'cumulative', 'calls'
+    stats.print_stats(20)  # Print top 20 slowest entries
