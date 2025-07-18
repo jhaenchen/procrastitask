@@ -1,6 +1,7 @@
 from typing import List, Optional
 from procrastitask.task import CompletionRecord, Task
 from datetime import timedelta, datetime
+from collections import defaultdict
 
 
 class TaskCollection:
@@ -52,6 +53,32 @@ class TaskCollection:
 
         return (accomplished_total / ((uncompleted_stress or 1) + accomplished_total)) * 100
     
+
+    def get_velocities_by_list(self, interval: timedelta) -> dict:
+        """
+        Returns a dictionary mapping list name to velocity for tasks in that list.
+        Assumes each Task has a 'list_name' attribute.
+        """
+        lists = defaultdict(list)
+        for task in self.filtered_tasks:
+            list_name = getattr(task, 'list_name', 'default')
+            lists[list_name].append(task)
+
+        velocities = {}
+        for list_name, tasks in lists.items():
+            accomplished_total = 0
+            uncompleted_stress = 0
+            for task in tasks:
+                if getattr(task, 'is_complete', False):
+                    for completion in getattr(task, 'history', []):
+                        if datetime.now() - completion.completed_at < interval:
+                            accomplished_total += completion.stress_at_completion
+                else:
+                    uncompleted_stress += task.get_rendered_stress()
+            velocity = (accomplished_total / ((uncompleted_stress or 1) + accomplished_total)) * 100
+            velocities[list_name] = velocity
+        return velocities
+
     def find_task_by_identifier(self, identifier: str) -> Optional[Task]:
         for task in self.filtered_tasks:
             if task.identifier == identifier:
