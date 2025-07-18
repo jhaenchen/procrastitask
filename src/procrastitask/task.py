@@ -161,9 +161,10 @@ class Task:
 
     def get_dynamic_base_date(self):
         """
-        Returns the correct base date for dynamic calculations, factoring in cool_down and periodicity.
+        Returns the correct base date for dynamic calculations, factoring in cool_down, periodicity, and due_date_cron.
         - For cool_down: returns the most recent moment when the task became incomplete again based on the cool down.
         - For periodicity: returns the most recent incomplete periodicity moment (cron boundary).
+        - For due_date_cron: returns the next due date from the cron schedule after the last completion, or from creation_date if no completions.
         - Otherwise, returns last_refreshed or creation_date.
         """
         now = datetime.now()
@@ -174,6 +175,15 @@ class Task:
                 cron = croniter.croniter(self.periodicity, last_completion)
                 next_period = cron.get_next(datetime)
                 return next_period
+            else:
+                return self.creation_date
+        # Handle due_date_cron
+        if self.due_date_cron:
+            if self.history:
+                last_completion = self.history[-1].completed_at
+                cron = croniter.croniter(self.due_date_cron, last_completion)
+                next_due = cron.get_next(datetime)
+                return next_due
             else:
                 return self.creation_date
         # Handle cool_down

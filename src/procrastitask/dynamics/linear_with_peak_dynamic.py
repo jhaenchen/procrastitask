@@ -14,7 +14,7 @@ class LinearWithPeakDynamic(BaseDynamic):
 
     def apply(self, creation_date: datetime, base_stress: int, task) -> float:
         # Use total seconds for sub-day precision
-        delta = (datetime.now() - creation_date)
+        delta = (datetime.now() - task.get_dynamic_base_date())
         offset = (delta.total_seconds() / 86400) / self.interval
         return min(base_stress + offset, self.peak)
 
