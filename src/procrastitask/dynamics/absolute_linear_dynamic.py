@@ -12,8 +12,8 @@ class AbsoluteLinearDynamic(BaseDynamic):
     increase_by: float
     every_x_days: float
 
-    _full_prefix = "dynamic-linear.{increase_by}.{every_x_days}"
-    _short_prefix = "linear.{increase_by}.{every_x_days}"
+    _full_prefix = "dynamic-linear-{increase_by}-{every_x_days}"
+    _short_prefix = "linear-{increase_by}-{every_x_days}"
 
     def apply(self, creation_date: datetime, base_stress: int, task) -> float:
         delta = (datetime.now() - creation_date)

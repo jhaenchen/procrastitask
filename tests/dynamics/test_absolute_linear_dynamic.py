@@ -18,13 +18,13 @@ class TestAbsoluteLinearDynamic(unittest.TestCase):
     def test_to_text_and_from_text(self):
         dyn = AbsoluteLinearDynamic(increase_by=3, every_x_days=7)
         text = dyn.to_text()
-        self.assertTrue(text.startswith("dynamic-linear."), text)
+        self.assertTrue(text.startswith("dynamic-linear-"), text)
         dyn2 = AbsoluteLinearDynamic.from_text(text)
         self.assertEqual(dyn2.increase_by, 3)
         self.assertEqual(dyn2.every_x_days, 7)
 
     def test_from_text_short(self):
-        text = "linear.1.5-2.5"
+        text = "linear-1.5-2.5"
         dyn = AbsoluteLinearDynamic.from_text(text)
         self.assertEqual(dyn.increase_by, 1.5)
         self.assertEqual(dyn.every_x_days, 2.5)
@@ -32,14 +32,14 @@ class TestAbsoluteLinearDynamic(unittest.TestCase):
     def test_to_and_from_text_valid(self):
         dyn = AbsoluteLinearDynamic(increase_by=1.5, every_x_days=2.5)
         text = dyn.to_text()
-        self.assertTrue(text.startswith("dynamic-linear."))
+        self.assertTrue(text.startswith("dynamic-linear-"))
         dyn2 = AbsoluteLinearDynamic.from_text(text)
         self.assertEqual(dyn2.increase_by, 1.5)
         self.assertEqual(dyn2.every_x_days, 2.5)
 
     def test_invalid_text(self):
         with self.assertRaises(ValueError):
-            AbsoluteLinearDynamic.from_text("linear.1.5")
+            AbsoluteLinearDynamic.from_text("linear-1.5")
 
 if __name__ == "__main__":
     unittest.main()
