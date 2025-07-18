@@ -38,6 +38,7 @@ class BaseDynamic(ABC):
         from .location_dynamic import LocationDynamic
         from .combined_dynamic import CombinedDynamic
         from .static_offset_dynamic import StaticOffsetDynamic
+        from .absolute_linear_dynamic import AbsoluteLinearDynamic
         all_dynamics = []
         for class_obj in BaseDynamic.__subclasses__():
             all_dynamics.append(class_obj)
