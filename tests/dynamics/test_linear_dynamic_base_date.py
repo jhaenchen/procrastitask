@@ -11,7 +11,7 @@ class TestTaskDynamicBaseDate(unittest.TestCase):
         right_now = datetime(2025, 5, 22, 13, 0)
         last_completion = right_now - timedelta(hours=3)
         cooldown = timedelta(hours=1)
-        cooldown_expiry = last_completion + cooldown  # 2 hours before right_now
+        cooldown_expiry = last_completion + cooldown * 0.9  # 90% of cooldown period
         task = Task(
             title="CoolDownTask",
             description="desc",
