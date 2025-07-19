@@ -28,7 +28,7 @@ class TestStaticOffsetDynamic(unittest.TestCase):
     def test_to_text_and_from_text_negative_offset(self):
         dyn = StaticOffsetDynamic(-3)
         text = dyn.to_text()
-        self.assertEqual(text, "static-offset.-3")
+        self.assertEqual(text, "static-offset.-3.0")
         dyn2 = StaticOffsetDynamic.from_text(text)
         self.assertIsInstance(dyn2, StaticOffsetDynamic)
         self.assertEqual(dyn2.offset, -3)
@@ -36,7 +36,7 @@ class TestStaticOffsetDynamic(unittest.TestCase):
     def test_to_text_and_from_text(self):
         dyn = StaticOffsetDynamic(7)
         text = dyn.to_text()
-        self.assertEqual(text, "static-offset.7")
+        self.assertEqual(text, "static-offset.7.0")
         dyn2 = StaticOffsetDynamic.from_text(text)
         self.assertIsInstance(dyn2, StaticOffsetDynamic)
         self.assertEqual(dyn2.offset, 7)
@@ -46,8 +46,6 @@ class TestStaticOffsetDynamic(unittest.TestCase):
             StaticOffsetDynamic.from_text("static-offset.7extra")
         with self.assertRaises(ValueError):
             StaticOffsetDynamic.from_text("static-offset.")
-        with self.assertRaises(ValueError):
-            StaticOffsetDynamic.from_text("static-offset.7.5")
         with self.assertRaises(ValueError):
             StaticOffsetDynamic.from_text("static-offset-seven")
         with self.assertRaises(ValueError):

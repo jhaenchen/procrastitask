@@ -32,26 +32,29 @@ class CombinedDynamic(BaseDynamic):
         return ["{dynamic} (+)/(-)/(|+) {dynamic}"]
 
     def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
-        prev_diff = self.dynamics[0].apply(creation_date, base_stress, task) - base_stress
-        diff = prev_diff
+        # Start with the initial stress
+        current_stress = base_stress
+        prev_diff = self.dynamics[0].apply(creation_date, current_stress, task) - current_stress
+        current_stress += prev_diff
         allow = True
         for i, operator in enumerate(self.operators):
-            next_diff = self.dynamics[i + 1].apply(creation_date, base_stress, task) - base_stress
+            # Each dynamic gets the updated stress
+            next_diff = self.dynamics[i + 1].apply(creation_date, current_stress, task) - current_stress
             if not allow:
                 continue
             if operator == '(+)':
-                diff += next_diff
+                current_stress += next_diff
             elif operator == '(-)':
-                diff -= next_diff
+                current_stress -= next_diff
             elif operator == '(|+)':
                 if prev_diff != 0:
-                    diff += next_diff
+                    current_stress += next_diff
                 else:
                     allow = False
             else:
                 raise ValueError(f"Unsupported operator: {operator}")
             prev_diff = next_diff
-        return base_stress + diff
+        return max(current_stress, 0)
 
     @staticmethod
     def from_text(text: str) -> "CombinedDynamic":

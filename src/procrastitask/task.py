@@ -129,6 +129,8 @@ class Task:
             return self._is_complete
         
         result = render_logic()
+        if self.is_due_soon():
+            result += max(result * 0.20, 1)
         if (cached_is_complete == True) and (result == False) and self.stress_dynamic:
             self.stress_dynamic.zero_out_static_dynamics()
             log.debug(f"Dynamic stress zeroed out for task {self.title} due to is_complete change.")

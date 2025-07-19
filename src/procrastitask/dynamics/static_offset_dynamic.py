@@ -11,15 +11,14 @@ class StaticOffsetDynamic(BaseDynamic):
     @staticmethod
     def from_text(text: str) -> "StaticOffsetDynamic":
         # Expected format: "static-offset.{integer}", including negative numbers
-        import re
-        match = re.fullmatch(r"static-offset\.(-?\d+)", text)
-        if not match:
+        try:
+            offset = float(text.split(StaticOffsetDynamic.prefixes()[0])[1])
+            return StaticOffsetDynamic(offset)
+        except (IndexError, ValueError):
             raise ValueError(f"Invalid static-offset dynamic format: {text}")
-        offset = int(match.group(1))
-        return StaticOffsetDynamic(offset)
 
     def to_text(self) -> str:
-        return f"static-offset.{int(self.offset)}"
+        return f"static-offset.{float(self.offset)}"
 
     def apply(self, creation_date: datetime, base_stress: int, task: "Task") -> float:
         return max(base_stress + self.offset, 0)
