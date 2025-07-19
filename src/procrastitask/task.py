@@ -81,6 +81,7 @@ class Task:
     @property
     def is_complete(self):
         log.debug(f"Evaluating is_complete for task named: {self.title}")
+        cached_is_complete = self._is_complete
 
         # Wrap this in a function so matter what, the result it returns get assigned to the inner class property
         def render_logic():
@@ -128,6 +129,10 @@ class Task:
             return self._is_complete
         
         result = render_logic()
+        if (cached_is_complete == True) and (result == False) and self.stress_dynamic:
+            self.stress_dynamic.zero_out_static_dynamics()
+            log.debug(f"Dynamic stress zeroed out for task {self.title} due to is_complete change.")
+
         self._is_complete = result
         if result:
             self.status = TaskStatus.COMPLETE

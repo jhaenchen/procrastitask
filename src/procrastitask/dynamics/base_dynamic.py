@@ -69,3 +69,18 @@ class BaseDynamic(ABC):
     @staticmethod
     def get_implementers():
         return BaseDynamic.__subclasses__()
+    
+    def zero_out_static_dynamics(self):
+        """
+        If this dynamic is a StaticOffsetDynamic, set its offset to zero.
+        If this dynamic is a CombinedDynamic, recursively zero out statics in its dynamics list.
+        """
+        from .static_offset_dynamic import StaticOffsetDynamic
+        from .combined_dynamic import CombinedDynamic
+        # If self is StaticOffsetDynamic, set offset to zero
+        if isinstance(self, StaticOffsetDynamic):
+            self.offset = 0
+        # If self is CombinedDynamic, apply recursively to all contained dynamics
+        elif isinstance(self, CombinedDynamic):
+            for dyn in self.dynamics:
+                dyn.zero_out_static_dynamics()
