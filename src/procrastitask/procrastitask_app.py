@@ -68,6 +68,7 @@ def rlinput(prefill: str = "", prompt="Edit:", multiprompt: Optional[dict] = Non
 
 
 class App:
+
     def __init__(self):
         self.filtered_tasks_to_resave = []
         self.selected_task_list_name = ["default"]
@@ -623,6 +624,36 @@ class App:
         if x.is_due_soon():
             x_stress += max(x_stress * 0.33, 1)
         return x_stress
+    
+    def promote_cached_item(self, cached_idx: int):
+        """
+        Increase the stress of the task at cached_idx to be one more than the previous neighbor's stress.
+        """
+        if cached_idx <= 0 or cached_idx not in self.cached_listed_tasks:
+            raise ValueError("No previous neighbor to promote against.")
+        neighbor_idx = cached_idx - 1
+        if neighbor_idx not in self.cached_listed_tasks:
+            raise ValueError("No previous neighbor found.")
+        neighbor_task = self.cached_listed_tasks[neighbor_idx]
+        neighbor_stress = neighbor_task.get_rendered_stress()
+        current_task = self.cached_listed_tasks[cached_idx]
+        current_stress = current_task.get_rendered_stress()
+        offset = (neighbor_stress + 1) - current_stress
+        self.modify_cached_task_stress_by_offset(cached_idx, offset)
+
+    def demote_cached_item(self, cached_idx: int):
+        """
+        Decrease the stress of the task at cached_idx to be one less than the next neighbor's stress.
+        """
+        neighbor_idx = cached_idx + 1
+        if neighbor_idx not in self.cached_listed_tasks:
+            raise ValueError("No next neighbor found.")
+        neighbor_task = self.cached_listed_tasks[neighbor_idx]
+        neighbor_stress = neighbor_task.get_rendered_stress()
+        current_task = self.cached_listed_tasks[cached_idx]
+        current_stress = current_task.get_rendered_stress()
+        offset = (neighbor_stress - 1) - current_stress
+        self.modify_cached_task_stress_by_offset(cached_idx, offset)
 
     def get_list_name_text(self):
         return f"(list: {self.selected_task_list_name})"
@@ -845,6 +876,14 @@ class App:
 
         if len(command) == 0:
             return
+        if command.endswith('++') and command[:-2].isdigit():
+            idx = int(command[:-2])
+            self.promote_cached_item(idx)
+            return
+        if command.endswith('--') and command[:-2].isdigit():
+            idx = int(command[:-2])
+            self.demote_cached_item(idx)
+            return
         if command == "n":
             self.all_tasks.append(self.create_new_task())
         if command == "nn":
@@ -923,4 +962,10 @@ if __name__ == "__main__":
     app.load()
     app.paged_task_list()
     while True:
-        app.display_home()
+        try:
+            app.display_home()
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            sleep(5)
+            app.reset_screen()
+            app.paged_task_list()
