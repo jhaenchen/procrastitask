@@ -129,8 +129,6 @@ class Task:
             return self._is_complete
         
         result = render_logic()
-        if self.is_due_soon():
-            result += max(result * 0.20, 1)
         if (cached_is_complete == True) and (result == False) and self.stress_dynamic:
             self.stress_dynamic.zero_out_static_dynamics()
             log.debug(f"Dynamic stress zeroed out for task {self.title} due to is_complete change.")
@@ -217,7 +215,10 @@ class Task:
         if not self.stress_dynamic:
             return round(base_stress, 1)
         base_stress_date = self.get_dynamic_base_date()
-        return round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
+        dynamic_stress_adjusted = round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
+        if self.is_due_soon():
+            dynamic_stress_adjusted = dynamic_stress_adjusted * 1.20
+        return dynamic_stress_adjusted
 
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()
