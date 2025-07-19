@@ -621,8 +621,6 @@ class App:
 
     def task_sorter(self, x: Task):
         x_stress = x.get_rendered_stress()
-        if x.is_due_soon():
-            x_stress += max(x_stress * 0.33, 1)
         return x_stress
     
     def promote_cached_item(self, cached_idx: int):
