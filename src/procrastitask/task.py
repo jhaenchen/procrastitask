@@ -327,6 +327,35 @@ class Task:
 
         return total_count
 
+    def get_all_downstream_tasks(self, all_tasks: List["Task"], _visited: Optional[set] = None) -> List[tuple["Task", int]]:
+        """
+        Returns all downstream tasks as a list of (task, depth) tuples.
+        Depth indicates how many levels deep the task is in the dependency tree.
+        Uses cycle detection to avoid infinite loops.
+        """
+        if _visited is None:
+            _visited = set()
+
+        # Prevent infinite loops from circular dependencies
+        if self.identifier in _visited:
+            return []
+
+        _visited.add(self.identifier)
+
+        # Find all direct dependents
+        dependents = self.find_dependents(all_tasks)
+
+        result = []
+        for dependent in dependents:
+            # Add the direct dependent at depth 0
+            result.append((dependent, 0))
+            # Recursively get downstream tasks and increment their depth
+            downstream = dependent.get_all_downstream_tasks(all_tasks, _visited)
+            for task, depth in downstream:
+                result.append((task, depth + 1))
+
+        return result
+
     @property
     def current_due_date(self) -> Optional[datetime]:
         """
@@ -371,16 +400,24 @@ class Task:
     def pretty_print(self, all_tasks: List["Task"]):
         print(self.headline())
         print(f"{self.description}\n")
-        dependents = self.find_dependents(all_tasks)
-        if dependents:
-            print(f"Dependent Tasks: \n")
-            for dependent in dependents:
-                found = [
-                    task
-                    for task in all_tasks
-                    if task.identifier == dependent.identifier
-                ][0]
-                print(f"* [{found.identifier}] {found.title}\n")
+
+        # Get all downstream tasks with their depth levels
+        downstream_tasks = self.get_all_downstream_tasks(all_tasks)
+
+        if downstream_tasks:
+            print(f"Downstream Dependent Tasks ({len(downstream_tasks)} total):\n")
+
+            # Group tasks by depth to handle tree visualization
+            for task, depth in downstream_tasks:
+                # Create tree indentation using box-drawing characters
+                if depth == 0:
+                    prefix = "├─ "
+                else:
+                    prefix = "│  " * depth + "└─ "
+
+                # Print task with indentation
+                status_indicator = "✓" if task.is_complete else " "
+                print(f"{prefix}[{status_indicator}] {task.title} (stress: {self._format_num_as_int_if_possible(task.get_rendered_stress(all_tasks))})\n")
 
     def find_dependents(self, all_tasks: List["Task"]) -> List["Task"]:
         to_return = []

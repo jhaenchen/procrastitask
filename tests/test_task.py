@@ -417,3 +417,83 @@ class TestTask(unittest.TestCase):
         # In a circular dependency, each sees the other as a dependent
         self.assertGreaterEqual(count1, 1)
         self.assertGreaterEqual(count2, 1)
+
+    def test_get_all_downstream_tasks_no_dependents(self):
+        """Test that a task with no dependents returns empty list"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10)
+        all_tasks = [t1, t2]
+
+        self.assertEqual(t1.get_all_downstream_tasks(all_tasks), [])
+        self.assertEqual(t2.get_all_downstream_tasks(all_tasks), [])
+
+    def test_get_all_downstream_tasks_direct_dependents(self):
+        """Test that a task returns direct dependents with depth 0"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 15, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3]
+
+        downstream = t1.get_all_downstream_tasks(all_tasks)
+        # Should have 2 direct dependents
+        self.assertEqual(len(downstream), 2)
+        # Both should be at depth 0
+        tasks, depths = zip(*downstream) if downstream else ([], [])
+        self.assertEqual(set(t.identifier for t in tasks), {t2.identifier, t3.identifier})
+        self.assertTrue(all(depth == 0 for depth in depths))
+
+    def test_get_all_downstream_tasks_transitive_dependents(self):
+        """Test that a task returns transitive dependents with correct depths: A <- B <- C"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 15, dependent_on=[t2.identifier])
+        all_tasks = [t1, t2, t3]
+
+        # t1's downstream should include B (depth 0) and C (depth 1)
+        downstream = t1.get_all_downstream_tasks(all_tasks)
+        self.assertEqual(len(downstream), 2)
+
+        # Check that B is at depth 0 and C is at depth 1
+        task_depths = {task.title: depth for task, depth in downstream}
+        self.assertEqual(task_depths["B"], 0)
+        self.assertEqual(task_depths["C"], 1)
+
+        # t2's downstream should only include C (depth 0)
+        downstream_t2 = t2.get_all_downstream_tasks(all_tasks)
+        self.assertEqual(len(downstream_t2), 1)
+        self.assertEqual(downstream_t2[0][0].title, "C")
+        self.assertEqual(downstream_t2[0][1], 0)
+
+    def test_get_all_downstream_tasks_multiple_chains(self):
+        """Test complex dependency graph: A <- B <- C, A <- D"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 15, dependent_on=[t2.identifier])
+        t4 = Task("D", "desc", 1, 10, 20, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3, t4]
+
+        downstream = t1.get_all_downstream_tasks(all_tasks)
+        # Should have 3 downstream tasks: B, C, D
+        self.assertEqual(len(downstream), 3)
+
+        # Check depths: B and D at depth 0, C at depth 1
+        task_depths = {task.title: depth for task, depth in downstream}
+        self.assertEqual(task_depths["B"], 0)
+        self.assertEqual(task_depths["D"], 0)
+        self.assertEqual(task_depths["C"], 1)
+
+    def test_get_all_downstream_tasks_circular_dependency(self):
+        """Test that circular dependencies don't cause infinite loops"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        # Create circular dependency
+        t1.dependent_on = [t2.identifier]
+        all_tasks = [t1, t2]
+
+        # Should not infinite loop
+        downstream1 = t1.get_all_downstream_tasks(all_tasks)
+        downstream2 = t2.get_all_downstream_tasks(all_tasks)
+
+        # Both should return something without crashing
+        self.assertIsNotNone(downstream1)
+        self.assertIsNotNone(downstream2)
