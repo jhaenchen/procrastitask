@@ -294,11 +294,38 @@ class Task:
         subprocess.call(("open", f.name))
 
     def get_dependent_count(self, all_tasks: List["Task"]) -> int:
+        """
+        Returns the count of direct dependents only.
+        """
         count = 0
         for task in all_tasks:
             if self.identifier in task.dependent_on:
                 count += 1
         return count
+
+    def get_downstream_count(self, all_tasks: List["Task"], _visited: Optional[set] = None) -> int:
+        """
+        Returns the total count of all downstream tasks (including transitive dependencies).
+        Uses cycle detection to avoid infinite loops.
+        """
+        if _visited is None:
+            _visited = set()
+
+        # Prevent infinite loops from circular dependencies
+        if self.identifier in _visited:
+            return 0
+
+        _visited.add(self.identifier)
+
+        # Find all direct dependents
+        dependents = self.find_dependents(all_tasks)
+
+        # Count direct dependents plus their downstream tasks
+        total_count = len(dependents)
+        for dependent in dependents:
+            total_count += dependent.get_downstream_count(all_tasks, _visited)
+
+        return total_count
 
     @property
     def current_due_date(self) -> Optional[datetime]:

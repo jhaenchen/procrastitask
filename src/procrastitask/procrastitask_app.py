@@ -700,9 +700,9 @@ class App:
         for idx, task in enumerate(incomplete_tasks):
             true_idx = idx + start_index
             space_padding = " " * (int(max_digit_length) - len(str(true_idx)))
-            dependent_count = task.get_dependent_count(tasks)
+            downstream_count = task.get_downstream_count(tasks)
             due_soon_indicator = "⏰ " if (task.is_due_soon() and not task.is_complete) else ""
-            task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline(tasks)}"
+            task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{downstream_count}) ' if downstream_count else ''}{task.headline(tasks)}"
             to_return.append((task_str, task.identifier, task))
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task

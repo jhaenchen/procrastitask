@@ -346,3 +346,74 @@ class TestTask(unittest.TestCase):
         # Without all_tasks, should just return own stress
         self.assertEqual(t1.get_rendered_stress(), 5)
         self.assertEqual(t2.get_rendered_stress(), 15)
+
+    def test_get_downstream_count_no_dependents(self):
+        """Test that a task with no dependents returns 0"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10)
+        all_tasks = [t1, t2]
+
+        self.assertEqual(t1.get_downstream_count(all_tasks), 0)
+        self.assertEqual(t2.get_downstream_count(all_tasks), 0)
+
+    def test_get_downstream_count_direct_dependents(self):
+        """Test that a task with direct dependents returns the correct count"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 15, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3]
+
+        # t1 has 2 direct dependents
+        self.assertEqual(t1.get_downstream_count(all_tasks), 2)
+        # t2 and t3 have no dependents
+        self.assertEqual(t2.get_downstream_count(all_tasks), 0)
+        self.assertEqual(t3.get_downstream_count(all_tasks), 0)
+
+    def test_get_downstream_count_transitive_dependents(self):
+        """Test that a task counts transitive dependents: A <- B <- C"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 15, dependent_on=[t2.identifier])
+        all_tasks = [t1, t2, t3]
+
+        # t1 blocks B and C (2 total downstream tasks)
+        self.assertEqual(t1.get_downstream_count(all_tasks), 2)
+        # t2 blocks only C (1 downstream task)
+        self.assertEqual(t2.get_downstream_count(all_tasks), 1)
+        # t3 has no dependents
+        self.assertEqual(t3.get_downstream_count(all_tasks), 0)
+
+    def test_get_downstream_count_multiple_chains(self):
+        """Test complex dependency graph: A <- B <- C, A <- D"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "desc", 1, 10, 15, dependent_on=[t2.identifier])
+        t4 = Task("D", "desc", 1, 10, 20, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3, t4]
+
+        # t1 blocks B, C (via B), and D (3 total downstream tasks)
+        self.assertEqual(t1.get_downstream_count(all_tasks), 3)
+        # t2 blocks only C
+        self.assertEqual(t2.get_downstream_count(all_tasks), 1)
+        # t3 and t4 have no dependents
+        self.assertEqual(t3.get_downstream_count(all_tasks), 0)
+        self.assertEqual(t4.get_downstream_count(all_tasks), 0)
+
+    def test_get_downstream_count_circular_dependency(self):
+        """Test that circular dependencies don't cause infinite loops"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        # Create circular dependency (shouldn't happen, but let's be safe)
+        t1.dependent_on = [t2.identifier]
+        all_tasks = [t1, t2]
+
+        # Should not infinite loop, should return reasonable values
+        count1 = t1.get_downstream_count(all_tasks)
+        count2 = t2.get_downstream_count(all_tasks)
+
+        # Both should have values (not crash)
+        self.assertIsNotNone(count1)
+        self.assertIsNotNone(count2)
+        # In a circular dependency, each sees the other as a dependent
+        self.assertGreaterEqual(count1, 1)
+        self.assertGreaterEqual(count2, 1)
