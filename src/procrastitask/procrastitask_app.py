@@ -393,7 +393,7 @@ class App:
                 due_date = task_to_edit.due_date if task_to_edit else ""
                 due_date_cron = task_to_edit.due_date_cron if task_to_edit else ""
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
-                stress = task_to_edit.get_rendered_stress(self.all_tasks) if task_to_edit else ""
+                stress = task_to_edit.stress if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
                 dependent_on = (
                     dependent_on
