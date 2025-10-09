@@ -276,3 +276,73 @@ class TestTask(unittest.TestCase):
         base_date = t.get_dynamic_base_date()
         self.assertIsNotNone(base_date)
         self.assertAlmostEqual((base_date - right_now).total_seconds(), 3600*0.9, delta=2)
+
+    def test_stress_propagates_from_dependent(self):
+        """Test that a task's stress is the maximum of its own stress and its dependents"""
+        t1 = Task("A", "desc", 1, 10, 5)  # Base task with stress 5
+        t2 = Task("B", "desc", 1, 10, 15, dependent_on=[t1.identifier])  # Depends on A, stress 15
+        all_tasks = [t1, t2]
+
+        # Without propagation (no all_tasks passed)
+        self.assertEqual(t1.get_rendered_stress(), 5)
+
+        # With propagation (all_tasks passed)
+        self.assertEqual(t1.get_rendered_stress(all_tasks), 15)
+        # Dependent should still show its own stress
+        self.assertEqual(t2.get_rendered_stress(all_tasks), 15)
+
+    def test_stress_propagates_through_chain(self):
+        """Test multi-level stress propagation: A <- B <- C"""
+        t1 = Task("A", "desc", 1, 10, 5)  # stress 5
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])  # stress 10
+        t3 = Task("C", "desc", 1, 10, 20, dependent_on=[t2.identifier])  # stress 20
+        all_tasks = [t1, t2, t3]
+
+        # C blocks B, B blocks A, so A should show C's stress (20)
+        self.assertEqual(t1.get_rendered_stress(all_tasks), 20)
+        self.assertEqual(t2.get_rendered_stress(all_tasks), 20)
+        self.assertEqual(t3.get_rendered_stress(all_tasks), 20)
+
+    def test_stress_propagates_max_from_multiple_dependents(self):
+        """Test that a task shows the max stress from multiple dependents"""
+        t1 = Task("A", "desc", 1, 10, 5)  # stress 5
+        t2 = Task("B", "desc", 1, 10, 12, dependent_on=[t1.identifier])  # stress 12
+        t3 = Task("C", "desc", 1, 10, 18, dependent_on=[t1.identifier])  # stress 18
+        all_tasks = [t1, t2, t3]
+
+        # A blocks both B and C, should show max (18)
+        self.assertEqual(t1.get_rendered_stress(all_tasks), 18)
+
+    def test_completed_tasks_dont_propagate_stress(self):
+        """Test that completed dependent tasks don't propagate their stress"""
+        t1 = Task("A", "desc", 1, 10, 5)  # stress 5
+        t2 = Task("B", "desc", 1, 10, 20, dependent_on=[t1.identifier])  # stress 20
+        t2._is_complete = True
+        all_tasks = [t1, t2]
+
+        # B is complete, so its stress shouldn't propagate to A
+        self.assertEqual(t1.get_rendered_stress(all_tasks), 5)
+
+    def test_circular_dependency_doesnt_infinite_loop(self):
+        """Test that circular dependencies don't cause infinite loops"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 10, dependent_on=[t1.identifier])
+        # Create circular dependency (normally shouldn't happen, but let's be safe)
+        t1.dependent_on = [t2.identifier]
+        all_tasks = [t1, t2]
+
+        # Should not infinite loop, should return some reasonable value
+        stress1 = t1.get_rendered_stress(all_tasks)
+        stress2 = t2.get_rendered_stress(all_tasks)
+        # Both should have values (not crash)
+        self.assertIsNotNone(stress1)
+        self.assertIsNotNone(stress2)
+
+    def test_backward_compatibility_without_all_tasks(self):
+        """Test that get_rendered_stress still works without all_tasks parameter"""
+        t1 = Task("A", "desc", 1, 10, 5)
+        t2 = Task("B", "desc", 1, 10, 15, dependent_on=[t1.identifier])
+
+        # Without all_tasks, should just return own stress
+        self.assertEqual(t1.get_rendered_stress(), 5)
+        self.assertEqual(t2.get_rendered_stress(), 15)

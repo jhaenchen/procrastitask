@@ -393,7 +393,7 @@ class App:
                 due_date = task_to_edit.due_date if task_to_edit else ""
                 due_date_cron = task_to_edit.due_date_cron if task_to_edit else ""
                 difficulty = task_to_edit.difficulty if task_to_edit else ""
-                stress = task_to_edit.get_rendered_stress() if task_to_edit else ""
+                stress = task_to_edit.get_rendered_stress(self.all_tasks) if task_to_edit else ""
                 duration = task_to_edit.duration if task_to_edit else ""
                 dependent_on = (
                     dependent_on
@@ -505,7 +505,7 @@ class App:
                     task_to_edit.dependent_on = dependent_on
                     task_to_edit.duration = duration
                     task_to_edit.difficulty = difficulty
-                    if float(task_to_edit.get_rendered_stress()) != float(stress):
+                    if float(task_to_edit.get_rendered_stress(self.all_tasks)) != float(stress):
                         task_to_edit.last_refreshed = datetime.now()
                     task_to_edit.stress = stress
                     task_to_edit.is_complete = is_complete
@@ -620,7 +620,7 @@ class App:
         return created_task
 
     def task_sorter(self, x: Task):
-        x_stress = x.get_rendered_stress()
+        x_stress = x.get_rendered_stress(self.all_tasks)
         return x_stress
     
     def promote_cached_item(self, cached_idx: int):
@@ -633,9 +633,9 @@ class App:
         if neighbor_idx not in self.cached_listed_tasks:
             raise ValueError("No previous neighbor found.")
         neighbor_task = self.cached_listed_tasks[neighbor_idx]
-        neighbor_stress = neighbor_task.get_rendered_stress()
+        neighbor_stress = neighbor_task.get_rendered_stress(self.all_tasks)
         current_task = self.cached_listed_tasks[cached_idx]
-        current_stress = current_task.get_rendered_stress()
+        current_stress = current_task.get_rendered_stress(self.all_tasks)
         offset = (neighbor_stress + 1) - current_stress
         self.modify_cached_task_stress_by_offset(cached_idx, offset)
 
@@ -647,9 +647,9 @@ class App:
         if neighbor_idx not in self.cached_listed_tasks:
             raise ValueError("No next neighbor found.")
         neighbor_task = self.cached_listed_tasks[neighbor_idx]
-        neighbor_stress = neighbor_task.get_rendered_stress()
+        neighbor_stress = neighbor_task.get_rendered_stress(self.all_tasks)
         current_task = self.cached_listed_tasks[cached_idx]
-        current_stress = current_task.get_rendered_stress()
+        current_stress = current_task.get_rendered_stress(self.all_tasks)
         offset = (neighbor_stress - 1) - current_stress
         self.modify_cached_task_stress_by_offset(cached_idx, offset)
 
@@ -702,7 +702,7 @@ class App:
             space_padding = " " * (int(max_digit_length) - len(str(true_idx)))
             dependent_count = task.get_dependent_count(tasks)
             due_soon_indicator = "⏰ " if (task.is_due_soon() and not task.is_complete) else ""
-            task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline()}"
+            task_str = f"[{true_idx}]  {space_padding}{due_soon_indicator}{f'(+{dependent_count}) ' if dependent_count else ''}{task.headline(tasks)}"
             to_return.append((task_str, task.identifier, task))
             # print(f"\n* {task.title} ({task.duration}min)")
             self.cached_listed_tasks[true_idx] = task

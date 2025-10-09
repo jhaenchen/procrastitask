@@ -209,16 +209,45 @@ class Task:
         # Default: use last_refreshed or creation_date
         return self.creation_date
 
-    def get_rendered_stress(self):
+    def get_rendered_stress(self, all_tasks: Optional[List["Task"]] = None, _visited: Optional[set] = None):
         log.debug(f"Evaluating rendered stress for task {self.title}")
         base_stress = self.stress
+
+        # Calculate own stress
         if not self.stress_dynamic:
-            return round(base_stress, 1)
-        base_stress_date = self.get_dynamic_base_date()
-        dynamic_stress_adjusted = round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
+            own_stress = round(base_stress, 1)
+        else:
+            base_stress_date = self.get_dynamic_base_date()
+            own_stress = round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
+
         if self.is_due_soon():
-            dynamic_stress_adjusted = dynamic_stress_adjusted * 1.20
-        return dynamic_stress_adjusted
+            own_stress = own_stress * 1.20
+
+        # If all_tasks not provided, return own stress (backward compatibility)
+        if all_tasks is None:
+            return own_stress
+
+        # Initialize visited set for cycle detection
+        if _visited is None:
+            _visited = set()
+
+        # Prevent infinite loops from circular dependencies
+        if self.identifier in _visited:
+            return own_stress
+
+        _visited.add(self.identifier)
+
+        # Find all tasks that depend on this task (are blocked by it)
+        dependents = self.find_dependents(all_tasks)
+
+        # Calculate max stress from incomplete dependent tasks
+        max_stress = own_stress
+        for dependent in dependents:
+            if not dependent.is_complete:
+                dependent_stress = dependent.get_rendered_stress(all_tasks, _visited)
+                max_stress = max(max_stress, dependent_stress)
+
+        return max_stress
 
     def update_last_refreshed(self):
         self.last_refreshed = datetime.now()
@@ -344,9 +373,9 @@ class Task:
                 saw_incomplete = True
         return not saw_incomplete
 
-    def headline(self):
+    def headline(self, all_tasks: Optional[List["Task"]] = None):
         due = self.current_due_date
-        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress())}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(due)) if due else ''})"
+        return f"{self.title} ({self._format_num_as_int_if_possible(self.duration)}min, stress: {self._format_num_as_int_if_possible(self.get_rendered_stress(all_tasks))}, diff: {self._format_num_as_int_if_possible(self.difficulty)}{(', ' + self.get_date_str(due)) if due else ''})"
 
     def complete(self):
         self.update_last_refreshed()
