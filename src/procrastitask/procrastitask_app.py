@@ -891,7 +891,10 @@ class App:
             # self.list_all_tasks()
         if self.find_task_by_any_id(command):
             found_task = self.find_task_by_any_id(command)
-            found_task.pretty_print(self.all_tasks)
+            # Clear cache and rebuild with tree tasks
+            self.cached_listed_tasks = {}
+            index_cache = found_task.pretty_print(self.all_tasks)
+            self.cached_listed_tasks.update(index_cache)
         if command.startswith("x"):
             index_val = command.split("x")[1]
             selected_task = self.cached_listed_tasks.get(int(index_val))

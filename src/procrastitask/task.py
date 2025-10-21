@@ -404,20 +404,28 @@ class Task:
         # Get all downstream tasks with their depth levels
         downstream_tasks = self.get_all_downstream_tasks(all_tasks)
 
+        # Build index cache for tree tasks starting from 0
+        index_cache = {}
+
         if downstream_tasks:
             print(f"Downstream Dependent Tasks ({len(downstream_tasks)} total):\n")
 
             # Group tasks by depth to handle tree visualization
-            for task, depth in downstream_tasks:
+            for idx, (task, depth) in enumerate(downstream_tasks):
+                # Add to cache
+                index_cache[idx] = task
+
                 # Create tree indentation using box-drawing characters
                 if depth == 0:
                     prefix = "├─ "
                 else:
                     prefix = "│  " * depth + "└─ "
 
-                # Print task with indentation
+                # Print task with indentation and index
                 status_indicator = "✓" if task.is_complete else " "
-                print(f"{prefix}[{status_indicator}] {task.title} (stress: {self._format_num_as_int_if_possible(task.get_rendered_stress(all_tasks))})\n")
+                print(f"[{idx}] {prefix}[{status_indicator}] {task.title} (stress: {self._format_num_as_int_if_possible(task.get_rendered_stress(all_tasks))})\n")
+
+        return index_cache
 
     def find_dependents(self, all_tasks: List["Task"]) -> List["Task"]:
         to_return = []

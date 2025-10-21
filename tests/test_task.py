@@ -497,3 +497,42 @@ class TestTask(unittest.TestCase):
         # Both should return something without crashing
         self.assertIsNotNone(downstream1)
         self.assertIsNotNone(downstream2)
+
+    def test_pretty_print_returns_index_cache(self):
+        """Test that pretty_print returns an index cache with downstream tasks"""
+        # Create a dependency tree: A <- B <- C, A <- D
+        t1 = Task("A", "Root task", 1, 10, 5)
+        t2 = Task("B", "Depends on A", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "Depends on B", 1, 10, 15, dependent_on=[t2.identifier])
+        t4 = Task("D", "Also depends on A", 1, 10, 20, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3, t4]
+
+        # Call pretty_print
+        index_cache = t1.pretty_print(all_tasks)
+
+        # Verify the cache is returned and is a dict
+        self.assertIsInstance(index_cache, dict)
+
+        # Verify indices start from 0 and are sequential
+        self.assertEqual(len(index_cache), 3)  # B, C, D
+        self.assertIn(0, index_cache)
+        self.assertIn(1, index_cache)
+        self.assertIn(2, index_cache)
+
+        # Verify the tasks are correctly mapped
+        cached_titles = {idx: task.title for idx, task in index_cache.items()}
+        # B and D are at depth 0, C is at depth 1
+        # The order depends on find_dependents, but all three should be present
+        self.assertEqual(set(cached_titles.values()), {"B", "C", "D"})
+
+    def test_pretty_print_empty_tree_returns_empty_cache(self):
+        """Test that pretty_print returns empty cache when no downstream tasks"""
+        t1 = Task("Standalone", "No dependents", 1, 10, 5)
+        all_tasks = [t1]
+
+        # Call pretty_print
+        index_cache = t1.pretty_print(all_tasks)
+
+        # Verify empty cache
+        self.assertIsInstance(index_cache, dict)
+        self.assertEqual(len(index_cache), 0)
