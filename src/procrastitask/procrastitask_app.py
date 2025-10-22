@@ -460,6 +460,7 @@ class App:
                 cool_down = self.interval_validator(cool_down)
                 periodicity = self.cron_validator(periodicity)
                 due_date_cron = self.cron_validator(due_date_cron)
+                task_list_name = self.list_name_validator(task_list_name)
                 dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
                 dependent_on = [
                     self.find_task_by_any_id(el).identifier
@@ -569,6 +570,31 @@ class App:
             except Exception as e:
                 print(e)
                 raise ValueError("Invalid interval")
+
+        return validator
+
+    @property
+    def list_name_validator(self):
+        def validator(val):
+            if not val:
+                return "default"
+
+            # Try to load list config
+            try:
+                dir = self.config.get("db_location", self.get_current_dir() + "/../..")
+                with open(dir + "/list_config.json", "r") as lists:
+                    task_lists_config = json.loads(lists.read())["lists"]
+                    valid_list_names = [el["name"] for el in task_lists_config]
+            except FileNotFoundError:
+                # If list_config.json doesn't exist, only allow "default"
+                valid_list_names = ["default"]
+
+            if val not in valid_list_names:
+                raise ValueError(
+                    f"Invalid list name '{val}'. Valid lists are: {', '.join(valid_list_names)}"
+                )
+
+            return val
 
         return validator
 

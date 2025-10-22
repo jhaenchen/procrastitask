@@ -167,3 +167,35 @@ class TestModifyTaskStressByOffset(unittest.TestCase):
     def test_raises_if_task_not_found(self):
         with self.assertRaises(ValueError):
             self.app.modify_task_stress_by_offset("notfound", 1)
+
+
+class TestListNameValidator(unittest.TestCase):
+    def setUp(self):
+        self.app = App()
+
+    def test_valid_list_name_is_accepted(self):
+        """Test that a list name in the config is accepted"""
+        # The app should have loaded list_config.json with valid lists
+        validator = self.app.list_name_validator
+        # Assuming "default" is in the config
+        result = validator("default")
+        self.assertEqual(result, "default")
+
+    def test_invalid_list_name_raises_error(self):
+        """Test that an invalid list name raises ValueError"""
+        validator = self.app.list_name_validator
+        with self.assertRaises(ValueError) as context:
+            validator("non_existent_list")
+        self.assertIn("Invalid list name", str(context.exception))
+
+    def test_empty_list_name_defaults_to_default(self):
+        """Test that empty string defaults to 'default'"""
+        validator = self.app.list_name_validator
+        result = validator("")
+        self.assertEqual(result, "default")
+
+    def test_none_list_name_defaults_to_default(self):
+        """Test that None defaults to 'default'"""
+        validator = self.app.list_name_validator
+        result = validator(None)
+        self.assertEqual(result, "default")
