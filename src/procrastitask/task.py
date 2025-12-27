@@ -218,7 +218,10 @@ class Task:
             own_stress = round(base_stress, 1)
         else:
             base_stress_date = self.get_dynamic_base_date()
-            own_stress = round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
+            try:
+                own_stress = round(self.stress_dynamic.apply(base_stress_date, self.stress, self), 1)
+            except Exception as e:
+                raise type(e)(f"Task '{self.title}' (id: {self.identifier}): {e}") from e
 
         if self.is_due_soon():
             own_stress = own_stress * 1.20
