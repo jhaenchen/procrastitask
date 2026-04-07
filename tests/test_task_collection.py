@@ -73,6 +73,34 @@ class TestTaskCollection(unittest.TestCase):
         # Two incomplete, one too long ago
         self.assertEqual([], selected_tasks)
 
+    def test_velocities_by_list_counts_recurring_task_completions(self):
+        """Recurring tasks are incomplete but have completion history — should count toward velocity."""
+        basic_task = Task("recurring", "descr", 10, 10, 10)
+        basic_task.list_name = "work"
+        basic_task.complete()
+        # Simulate it being reset (recurring): mark incomplete but keep history
+        basic_task.is_complete = False
+
+        collection = TaskCollection(filtered_tasks=[basic_task], unfiltered_tasks=[basic_task])
+        velocities = collection.get_velocities_by_list(interval=timedelta(weeks=1))
+        self.assertGreater(velocities["work"], 0)
+
+    def test_historical_velocities_buckets_completions_by_week(self):
+        """A completion 3 weeks ago should appear in week index 2 (0-indexed from oldest end after reversal),
+        i.e. week_idx=3 in the raw list returned by get_historical_velocities_by_list."""
+        basic_task = Task("old task", "descr", 10, 10, 10)
+        basic_task.list_name = "work"
+        basic_task.complete()
+        # Move the completion to 3.5 weeks ago (falls in week_idx=3 bucket)
+        basic_task.history[0].completed_at = datetime.now() - timedelta(weeks=3, days=3)
+
+        collection = TaskCollection(filtered_tasks=[basic_task], unfiltered_tasks=[basic_task])
+        history = collection.get_historical_velocities_by_list(weeks_back=8)
+        work_history = history["work"]
+        # week_idx=3 should be non-zero, current week (idx=0) should be zero
+        self.assertEqual(work_history[0], 0.0)
+        self.assertGreater(work_history[3], 0.0)
+
     def test_cron_stress_resets_at_interval_overlap(self):
         """
         When you have a repeating task with a stress dynamic, the stress should be based on the period immediately following the most recent completion (not the last time you completed it).

@@ -69,15 +69,45 @@ class TaskCollection:
             accomplished_total = 0
             uncompleted_stress = 0
             for task in tasks:
-                if getattr(task, 'is_complete', False):
-                    for completion in getattr(task, 'history', []):
-                        if datetime.now() - completion.completed_at < interval:
-                            accomplished_total += completion.stress_at_completion
-                else:
+                # Check history on all tasks — recurring tasks may be incomplete but have past completions
+                for completion in getattr(task, 'history', []):
+                    if datetime.now() - completion.completed_at < interval:
+                        accomplished_total += completion.stress_at_completion
+                if not getattr(task, 'is_complete', False):
                     uncompleted_stress += task.get_rendered_stress()
             velocity = (accomplished_total / ((uncompleted_stress or 1) + accomplished_total)) * 100
             velocities[list_name] = velocity
         return velocities
+
+    def get_historical_velocities_by_list(self, weeks_back: int = 8) -> dict:
+        """
+        Returns {list_name: [v_week0, v_week1, ...]} where index 0 = most recent week.
+        Each entry is the velocity for that weekly bucket (not cumulative).
+        """
+        lists: dict[str, list] = defaultdict(list)
+        for task in self.filtered_tasks:
+            list_name = getattr(task, 'list_name', 'default')
+            lists[list_name].append(task)
+
+        result = {}
+        for list_name, tasks in lists.items():
+            uncompleted_stress = sum(
+                task.get_rendered_stress() for task in tasks
+                if not getattr(task, 'is_complete', False)
+            )
+            weekly_velocities = []
+            for week_idx in range(weeks_back):
+                window_end = datetime.now() - timedelta(weeks=week_idx)
+                window_start = window_end - timedelta(weeks=1)
+                accomplished = 0
+                for task in tasks:
+                    for completion in getattr(task, 'history', []):
+                        if window_start <= completion.completed_at < window_end:
+                            accomplished += completion.stress_at_completion
+                velocity = (accomplished / ((uncompleted_stress or 1) + accomplished)) * 100
+                weekly_velocities.append(round(velocity, 2))
+            result[list_name] = weekly_velocities
+        return result
 
     def find_task_by_identifier(self, identifier: str) -> Optional[Task]:
         for task in self.filtered_tasks:
