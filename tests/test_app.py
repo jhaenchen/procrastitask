@@ -1,4 +1,8 @@
+import json
+import os
+import tempfile
 import unittest
+from unittest.mock import patch
 from procrastitask.procrastitask_app import App
 from procrastitask.task import Task, TaskStatus
 from datetime import datetime
@@ -199,3 +203,23 @@ class TestListNameValidator(unittest.TestCase):
         validator = self.app.list_name_validator
         result = validator(None)
         self.assertEqual(result, "default")
+
+
+class TestSave(unittest.TestCase):
+    def test_save_deduplicates_tasks_by_identifier(self):
+        app = App()
+        task = Task("Beard trim", "", 4, 20, 4)
+        duplicate = Task.from_dict(task.to_dict())
+        app.all_tasks = [task, duplicate]
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            tmp_path = f.name
+        try:
+            with patch.object(app, 'get_db_location', return_value=tmp_path):
+                app.save()
+            with open(tmp_path) as f:
+                saved = json.load(f)
+            self.assertEqual(len(saved), 1)
+            self.assertEqual(saved[0]['identifier'], task.identifier)
+        finally:
+            os.unlink(tmp_path)

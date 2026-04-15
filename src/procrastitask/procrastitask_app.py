@@ -170,9 +170,13 @@ class App:
                 def sorter(t: Task):
                     return (t.is_complete, t.title)
 
-                sorted_tasks = sorted(
-                    self.all_tasks + self.filtered_tasks_to_resave, key=sorter
-                )
+                seen_ids = set()
+                deduped_tasks = []
+                for t in self.all_tasks + self.filtered_tasks_to_resave:
+                    if t.identifier not in seen_ids:
+                        seen_ids.add(t.identifier)
+                        deduped_tasks.append(t)
+                sorted_tasks = sorted(deduped_tasks, key=sorter)
                 task_json_dicts = [task.to_dict() for task in sorted_tasks]
                 json_str = json.dumps(task_json_dicts)
                 db.write(json_str)
