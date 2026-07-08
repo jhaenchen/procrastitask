@@ -147,6 +147,79 @@ class TestApp(unittest.TestCase):
 
         self.assertEqual(absolute, relative)
 
+    def test_has_stress_crowding_detects_small_gap(self):
+        app = App()
+        a = Task("a", "d", 1, 1, 10.000, list_name="L")
+        b = Task("b", "d", 1, 1, 10.001, list_name="L")
+        c = Task("c", "d", 1, 1, 20.0, list_name="L")
+        app.all_tasks = [a, b, c]
+        self.assertTrue(app.has_stress_crowding("L", epsilon=0.01))
+
+    def test_has_stress_crowding_ignores_wide_gaps(self):
+        app = App()
+        a = Task("a", "d", 1, 1, 10, list_name="L")
+        b = Task("b", "d", 1, 1, 20, list_name="L")
+        app.all_tasks = [a, b]
+        self.assertFalse(app.has_stress_crowding("L", epsilon=0.01))
+
+    def test_renormalize_evenly_spaces_and_preserves_order(self):
+        app = App()
+        a = Task("a", "d", 1, 1, 10.0, list_name="L")
+        b = Task("b", "d", 1, 1, 10.001, list_name="L")
+        c = Task("c", "d", 1, 1, 10.002, list_name="L")
+        d = Task("d", "d", 1, 1, 20.0, list_name="L")
+        app.all_tasks = [a, b, c, d]
+        original_order = [a.identifier, b.identifier, c.identifier, d.identifier]
+
+        adjusted = app.renormalize_list_stress("L")
+
+        self.assertGreater(adjusted, 0)
+        ranked = sorted(app.all_tasks, key=lambda t: t.get_rendered_stress(app.all_tasks))
+        self.assertEqual([t.identifier for t in ranked], original_order)
+        stresses = [t.get_rendered_stress(app.all_tasks) for t in ranked]
+        gaps = [stresses[i + 1] - stresses[i] for i in range(len(stresses) - 1)]
+        # Rendered stress rounds to 1 decimal (see task.py get_rendered_stress),
+        # so gaps can differ from ideal step by up to ~0.1.
+        ideal_step = (20.0 - 10.0) / (len(stresses) - 1)
+        for g in gaps:
+            self.assertAlmostEqual(g, ideal_step, delta=0.15)
+        self.assertAlmostEqual(stresses[0], 10.0, delta=0.1)
+        self.assertAlmostEqual(stresses[-1], 20.0, delta=0.1)
+
+    def test_renormalize_widens_when_range_too_narrow(self):
+        app = App()
+        a = Task("a", "d", 1, 1, 5.0, list_name="L")
+        b = Task("b", "d", 1, 1, 5.0001, list_name="L")
+        c = Task("c", "d", 1, 1, 5.0002, list_name="L")
+        app.all_tasks = [a, b, c]
+
+        app.renormalize_list_stress("L")
+
+        ranked = sorted(app.all_tasks, key=lambda t: t.get_rendered_stress(app.all_tasks))
+        stresses = [t.get_rendered_stress(app.all_tasks) for t in ranked]
+        # Range was ~0.0002 with n=3, so we widen to at least n-1=2, step >= 1.0
+        for i in range(len(stresses) - 1):
+            self.assertGreaterEqual(stresses[i + 1] - stresses[i], 1.0 - 1e-6)
+
+    def test_renormalize_noop_for_singleton_list(self):
+        app = App()
+        solo = Task("solo", "d", 1, 1, 42, list_name="L")
+        app.all_tasks = [solo]
+        adjusted = app.renormalize_list_stress("L")
+        self.assertEqual(adjusted, 0)
+        self.assertEqual(solo.get_rendered_stress(app.all_tasks), 42)
+
+    def test_renormalize_scoped_to_list_name(self):
+        app = App()
+        a = Task("a", "d", 1, 1, 10.0, list_name="L")
+        b = Task("b", "d", 1, 1, 10.0001, list_name="L")
+        other = Task("other", "d", 1, 1, 10.0, list_name="OTHER")
+        app.all_tasks = [a, b, other]
+
+        app.renormalize_list_stress("L")
+
+        self.assertEqual(other.get_rendered_stress(app.all_tasks), 10.0)
+
     def test_compute_relative_stress_ranks_ties_and_singletons(self):
         app = App()
         t1 = Task("t1", "d", 1, 1, 5, list_name="a")

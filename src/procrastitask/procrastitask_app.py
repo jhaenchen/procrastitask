@@ -653,6 +653,57 @@ class App:
         x_stress = x.get_rendered_stress(self.all_tasks)
         return x_stress
 
+    def _incomplete_tasks_in_list(self, list_name: str) -> List[Task]:
+        return [
+            t for t in self.all_tasks
+            if getattr(t, "list_name", "default") == list_name and not t.is_complete
+        ]
+
+    def has_stress_crowding(self, list_name: str, epsilon: float = 0.01) -> bool:
+        """
+        True iff any adjacent pair of incomplete tasks in this list has a
+        rendered-stress gap smaller than epsilon. Used to decide whether
+        repeated bisection has crowded values to the point of illegibility.
+        """
+        cohort = self._incomplete_tasks_in_list(list_name)
+        if len(cohort) < 2:
+            return False
+        ranked = sorted(cohort, key=lambda t: t.get_rendered_stress(self.all_tasks))
+        for a, b in zip(ranked, ranked[1:]):
+            if b.get_rendered_stress(self.all_tasks) - a.get_rendered_stress(self.all_tasks) < epsilon:
+                return True
+        return False
+
+    def renormalize_list_stress(self, list_name: str) -> int:
+        """
+        Re-space rendered stress across incomplete tasks in `list_name` so the
+        gaps between neighbors are uniform. Preserves the current min and max
+        rendered stress; if the range is narrower than (n-1), widens it so the
+        step is at least 1.0 (leaves headroom for future bisections).
+        Preserves ordering. Applies adjustments through the existing
+        StaticOffsetDynamic mechanism so other dynamics are retained.
+        Returns the number of tasks that were adjusted.
+        """
+        cohort = self._incomplete_tasks_in_list(list_name)
+        if len(cohort) < 2:
+            return 0
+        ranked = sorted(cohort, key=lambda t: t.get_rendered_stress(self.all_tasks))
+        lo = ranked[0].get_rendered_stress(self.all_tasks)
+        hi = ranked[-1].get_rendered_stress(self.all_tasks)
+        n = len(ranked)
+        if hi - lo < (n - 1):
+            hi = lo + (n - 1)
+        step = (hi - lo) / (n - 1)
+        adjusted = 0
+        for i, task in enumerate(ranked):
+            target = lo + i * step
+            current = task.get_rendered_stress(self.all_tasks)
+            offset = target - current
+            if abs(offset) > 1e-9:
+                self.modify_task_stress_by_offset(task.identifier, offset)
+                adjusted += 1
+        return adjusted
+
     def compute_relative_stress_ranks(self, tasks: List[Task]) -> dict:
         """
         For each task in `tasks`, compute a percentile rank in [0, 1] of its
