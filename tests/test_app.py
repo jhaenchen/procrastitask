@@ -106,6 +106,65 @@ class TestApp(unittest.TestCase):
         self.assertEqual(result[0][1], task3.identifier)
         self.assertEqual(result[1][1], task2.identifier)
 
+    def test_relative_ranking_interleaves_lists(self):
+        """
+        With absolute ranking, a low-stress list is buried under a high-stress one.
+        With relative ranking, the top of each list should appear first
+        (both at percentile 1.0), then the bottoms.
+        """
+        app = App()
+        work_high = Task("work-high", "d", 1, 1, 100, list_name="work")
+        work_low = Task("work-low", "d", 1, 1, 90, list_name="work")
+        home_high = Task("home-high", "d", 1, 1, 5, list_name="home")
+        home_low = Task("home-low", "d", 1, 1, 1, list_name="home")
+        app.all_tasks = [work_high, work_low, home_high, home_low]
+        app.load(task_list_override=app.all_tasks)
+
+        absolute = [t[1] for t in app.list_all_tasks(also_print=False, ranking="absolute")]
+        relative = [t[1] for t in app.list_all_tasks(also_print=False, ranking="relative")]
+
+        self.assertEqual(
+            absolute,
+            [work_high.identifier, work_low.identifier, home_high.identifier, home_low.identifier],
+        )
+        # Relative: both list-toppers first (tie at percentile 1.0), then both list-bottoms.
+        # Within each tie, secondary sort by absolute stress puts the higher-stress one first.
+        self.assertEqual(relative[0], work_high.identifier)
+        self.assertEqual(relative[1], home_high.identifier)
+        self.assertEqual(relative[2], work_low.identifier)
+        self.assertEqual(relative[3], home_low.identifier)
+
+    def test_relative_ranking_matches_absolute_within_single_list(self):
+        app = App()
+        t1 = Task("a", "d", 1, 1, 10, list_name="only")
+        t2 = Task("b", "d", 1, 1, 20, list_name="only")
+        t3 = Task("c", "d", 1, 1, 30, list_name="only")
+        app.all_tasks = [t1, t2, t3]
+        app.load(task_list_override=app.all_tasks)
+
+        absolute = [t[1] for t in app.list_all_tasks(also_print=False, ranking="absolute")]
+        relative = [t[1] for t in app.list_all_tasks(also_print=False, ranking="relative")]
+
+        self.assertEqual(absolute, relative)
+
+    def test_compute_relative_stress_ranks_ties_and_singletons(self):
+        app = App()
+        t1 = Task("t1", "d", 1, 1, 5, list_name="a")
+        t2 = Task("t2", "d", 1, 1, 5, list_name="a")
+        t3 = Task("t3", "d", 1, 1, 10, list_name="a")
+        t_solo = Task("solo", "d", 1, 1, 42, list_name="b")
+        app.all_tasks = [t1, t2, t3, t_solo]
+
+        ranks = app.compute_relative_stress_ranks(app.all_tasks)
+
+        # Singleton cohort → percentile 1.0
+        self.assertEqual(ranks[t_solo.identifier], 1.0)
+        # Ties get average rank; t1 and t2 share the bottom two ranks (0, 1) → avg 0.5 / 2 = 0.25
+        self.assertEqual(ranks[t1.identifier], 0.25)
+        self.assertEqual(ranks[t2.identifier], 0.25)
+        # t3 is top of its cohort → 1.0
+        self.assertEqual(ranks[t3.identifier], 1.0)
+
 
 class TestModifyTaskStressByOffset(unittest.TestCase):
     def setUp(self):

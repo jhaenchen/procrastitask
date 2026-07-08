@@ -652,6 +652,38 @@ class App:
     def task_sorter(self, x: Task):
         x_stress = x.get_rendered_stress(self.all_tasks)
         return x_stress
+
+    def compute_relative_stress_ranks(self, tasks: List[Task]) -> dict:
+        """
+        For each task in `tasks`, compute a percentile rank in [0, 1] of its
+        rendered stress within the cohort of tasks that share the same
+        `list_name`. Ties are averaged. Returns {task.identifier: percentile}.
+
+        Cohort assumption: callers should pass the set of tasks they consider
+        "currently open" (incomplete, dependencies met) so the percentile
+        reflects present competition within each list.
+        """
+        from collections import defaultdict
+        by_list: dict[str, List[Task]] = defaultdict(list)
+        for t in tasks:
+            by_list[getattr(t, "list_name", "default")].append(t)
+
+        ranks: dict[str, float] = {}
+        for cohort in by_list.values():
+            stress_pairs = [(t, t.get_rendered_stress(self.all_tasks)) for t in cohort]
+            stress_pairs.sort(key=lambda p: p[1])
+            n = len(stress_pairs)
+            i = 0
+            while i < n:
+                j = i
+                while j + 1 < n and stress_pairs[j + 1][1] == stress_pairs[i][1]:
+                    j += 1
+                avg_rank = (i + j) / 2.0
+                percentile = avg_rank / (n - 1) if n > 1 else 1.0
+                for k in range(i, j + 1):
+                    ranks[stress_pairs[k][0].identifier] = percentile
+                i = j + 1
+        return ranks
     
     def promote_cached_item(self, cached_idx: int):
         """
@@ -695,6 +727,7 @@ class App:
         extend_cache=False,
         also_print=True,
         smart_filter=True,
+        ranking: str = "absolute",
     ) -> List[Tuple[str, str, Task]]:
         if also_print:
             self.reset_screen()
@@ -722,7 +755,15 @@ class App:
                 print("You have no available tasks.")
             return []
 
-        incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
+        if ranking == "relative":
+            relative_ranks = self.compute_relative_stress_ranks(incomplete_tasks)
+            incomplete_tasks = sorted(
+                incomplete_tasks,
+                key=lambda t: (relative_ranks[t.identifier], self.task_sorter(t)),
+                reverse=True,
+            )
+        else:
+            incomplete_tasks = sorted(incomplete_tasks, key=self.task_sorter, reverse=True)
         to_return = []
 
         max_digit_length = len(str((len(incomplete_tasks) + start_index)))
