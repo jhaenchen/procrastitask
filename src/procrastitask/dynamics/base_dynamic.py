@@ -39,6 +39,7 @@ class BaseDynamic(ABC):
         from .combined_dynamic import CombinedDynamic
         from .static_offset_dynamic import StaticOffsetDynamic
         from .absolute_linear_dynamic import AbsoluteLinearDynamic
+        from .piecewise_linear_dynamic import PiecewiseLinearDynamic
         all_dynamics = []
         for class_obj in BaseDynamic.__subclasses__():
             all_dynamics.append(class_obj)
