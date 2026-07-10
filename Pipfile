@@ -8,13 +8,13 @@ icalendar = "*"
 croniter = "*"
 geopy = "*"
 requests = "*"
+freezegun = "*"
 
 [dev-packages]
 pytest = "*"
 coverage = "*"
 types-croniter = "*"
 procrastitask = {file = ".", editable = true}
-freezegun = "*"
 exceptiongroup = "*"
 
 [scripts]
