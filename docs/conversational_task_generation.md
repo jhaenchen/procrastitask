@@ -76,6 +76,22 @@ Maximal — recurring task with stress that grows toward the due date:
 ]
 ```
 
+## Patching an existing task
+
+Include an `identifier` field on the entry. `add_tasks.py` looks up the existing task, applies the supplied fields on top of it (preserving history, is_complete, creation_date, etc.), round-trips through `Task.from_dict`, and writes back in place.
+
+```json
+[
+  {
+    "identifier": "60578102-5e30-4062-8537-74b8b1b68f28",
+    "description": "Rewritten description.",
+    "stress": 5
+  }
+]
+```
+
+Patch and append entries can be mixed in the same array. An `identifier` that does *not* already exist in the DB is treated as a new task with a caller-supplied id — useful when a batch needs to express `dependent_on` between its own new entries.
+
 ## Migration to another procrastitask instance
 
 Extract the list from this instance's `tasks.json`:
