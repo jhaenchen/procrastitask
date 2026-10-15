@@ -1055,6 +1055,10 @@ class App:
                 a.identifier: self._score_refresh_anchor(a, snapshot)
                 for a in cohort_all
             }
+            # frozenset({id_a, id_b}) -> winner_id. Lets us auto-advance the
+            # bisect when a pair the user already ranked re-appears as a
+            # midpoint (A vs B then later B vs A would otherwise re-prompt).
+            preferences: dict = {}
             bail = False
             while True:
                 eligible = [
@@ -1071,6 +1075,15 @@ class App:
                 lo, hi = windows[item.identifier]
                 mid = (lo + hi) // 2
                 b_task = cohort[mid]
+                pref_key = frozenset({item.identifier, b_task.identifier})
+                if pref_key in preferences:
+                    # Already-known preference: narrow silently, no prompt.
+                    if preferences[pref_key] == item.identifier:
+                        windows[item.identifier] = [mid + 1, hi]
+                    else:
+                        windows[item.identifier] = [lo, mid]
+                    bs_compared[item.identifier].append(b_task)
+                    continue
                 asked[item.identifier] += 1
                 questions_total += 1
                 touched = sum(1 for v in asked.values() if v > 0)
@@ -1093,8 +1106,10 @@ class App:
                 bs_compared[item.identifier].append(b_task)
                 if answer == "1":
                     windows[item.identifier] = [mid + 1, hi]
+                    preferences[pref_key] = item.identifier
                 else:
                     windows[item.identifier] = [lo, mid]
+                    preferences[pref_key] = b_task.identifier
             if any(asked[a.identifier] > 0 for a in cohort_all):
                 self._apply_list_rerank(
                     cohort_all, snapshot, windows, bs_compared, asked

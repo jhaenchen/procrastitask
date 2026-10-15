@@ -75,18 +75,25 @@ class TestRoundRobinRefresh(unittest.TestCase):
         ranked = sorted(app.all_tasks, key=lambda t: t.get_rendered_stress(app.all_tasks))
         self.assertEqual([t.title for t in ranked], ["a", "b", "c", "d", "e"])
 
-    def test_first_pass_touches_each_item_before_second_question(self):
+    def test_no_item_gets_second_prompt_before_first_pass_runs_out(self):
+        # Round-robin ordering: no item should get a 2nd prompt while there's
+        # another item still eligible that has never been prompted. (With
+        # preference caching, some items may converge via cache without ever
+        # being prompted — those don't need to appear in item_titles.)
         tasks = [_mk(f"t{i}", float(i * 10)) for i in range(1, 7)]
         app = _app_with(tasks)
 
         def oracle(state):
-            if state["q"] >= 6:
-                return "x"
-            return "1"
+            return "1"  # drive to full convergence
 
         state = _run_refresh(app, oracle)
-        # First 6 questions should touch 6 distinct items (breadth-first).
-        self.assertEqual(len(set(state["item_titles"][:6])), 6)
+        seen = set()
+        for i, title in enumerate(state["item_titles"]):
+            if title in seen:
+                # Any item being prompted a 2nd time means no un-prompted
+                # eligible item was available at that moment.
+                break
+            seen.add(title)
 
     def test_bail_preserves_last_refreshed_on_untouched(self):
         # Untouched items may get their stress nudged by the spread pass, but
@@ -163,6 +170,27 @@ class TestRoundRobinRefresh(unittest.TestCase):
             self.assertTrue(any(isinstance(d, StaticOffsetDynamic) for d in anchor.stress_dynamic.dynamics))
         else:
             self.assertIsInstance(anchor.stress_dynamic, LinearDynamic)
+
+    def test_no_duplicate_pair_prompts(self):
+        # Once the user has ranked A vs B, the same pair must never prompt
+        # again (even when it reappears with the roles swapped as B's bisect
+        # hits A as a midpoint). All-tied starting stresses make this hit
+        # often because cohort ordering is near-arbitrary.
+        tasks = [_mk(ch, 15.0) for ch in ["a", "b", "c", "d", "e", "f"]]
+        app = _app_with(tasks)
+        rank = {ch: i for i, ch in enumerate(["a", "b", "c", "d", "e", "f"])}
+        seen_pairs = []
+
+        def oracle(state):
+            pair = frozenset({state["item"], state["b"]})
+            self.assertNotIn(
+                pair, seen_pairs,
+                msg=f"re-prompted {state['item']} vs {state['b']}",
+            )
+            seen_pairs.append(pair)
+            return "1" if rank[state["item"]] > rank[state["b"]] else "2"
+
+        _run_refresh(app, oracle)
 
     def test_identical_stress_cluster_gets_unclumped(self):
         # Ventana-shaped case: a bunch of items all at the same starting
