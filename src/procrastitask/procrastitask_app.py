@@ -900,36 +900,190 @@ class App:
         matches = [task for task in self.all_tasks if task.title == task_title]
         return matches[0] if matches else None
 
+    REFRESH_ANCHOR_AGE_CAP_DAYS = 90
+    REFRESH_CROWDING_EPSILON = 0.1
+
+    def _score_refresh_anchor(self, task: Task, ranked_cohort: List[Task]) -> float:
+        """
+        Priority score for picking a refresh anchor. Combines staleness with
+        how crowded this task is against its rendered-stress neighbors.
+        Higher = more worth asking about.
+        """
+        age_days = max(0, (datetime.now() - task.last_refreshed).days)
+        age_days = min(age_days, self.REFRESH_ANCHOR_AGE_CAP_DAYS)
+
+        task_stress = task.get_rendered_stress(self.all_tasks)
+        gaps = []
+        for neighbor in ranked_cohort:
+            if neighbor.identifier == task.identifier:
+                continue
+            gaps.append(abs(neighbor.get_rendered_stress(self.all_tasks) - task_stress))
+        min_gap = min(gaps) if gaps else 1.0
+        crowding = 1.0 / (min_gap + self.REFRESH_CROWDING_EPSILON)
+        return (age_days + 1) * crowding
+
+    def _prompt_bisect_answer(self, prompt_text: str) -> str:
+        """Returns one of '1', '2', 's', 'x'. Loops until valid.
+        Accepts y/n as aliases for 1/2 so existing callers (e.g. the
+        continue-session prompt) keep working.
+        """
+        def mapper(s: str) -> str:
+            s = s.strip().lower()
+            if s in ("1", "y", "yes"):
+                return "1"
+            if s in ("2", "n", "no"):
+                return "2"
+            if s == "s":
+                return "s"
+            if s == "x":
+                return "x"
+            raise ValueError("Enter 1/2/s/x.")
+        return self.get_input_with_validation_mapper(prompt_text, mapper)
+
+    def _flush_item_rank(
+        self,
+        item: Task,
+        cohort_with_frozen_stress: List[Tuple[Task, float]],
+        insert_index: int,
+        bs_compared: List[Task],
+    ) -> None:
+        """
+        Writeback item's new rendered-stress position based on the frozen
+        cohort snapshot (stresses captured at session start, so partial
+        writebacks earlier in the session don't shift our math). Also updates
+        last_refreshed on each B the user compared against.
+        """
+        n = len(cohort_with_frozen_stress)
+        if n == 0:
+            return
+        if insert_index <= 0:
+            target = cohort_with_frozen_stress[0][1] - 1.0
+        elif insert_index >= n:
+            target = cohort_with_frozen_stress[-1][1] + 1.0
+        else:
+            lo_s = cohort_with_frozen_stress[insert_index - 1][1]
+            hi_s = cohort_with_frozen_stress[insert_index][1]
+            target = (lo_s + hi_s) / 2.0
+        current = item.get_rendered_stress(self.all_tasks)
+        offset = target - current
+        if abs(offset) > 1e-9:
+            self.modify_task_stress_by_offset(item.identifier, offset)
+        else:
+            item.update_last_refreshed()
+        for b in bs_compared:
+            b.update_last_refreshed()
+
     def refresh_stress_levels(self):
+        """
+        Interactive round-robin shallow bisect. Each list's cohort is
+        snapshotted once at session start (frozen stresses). We cycle through
+        items in priority order (stale + crowded first), asking one bisect
+        question per item per pass. After pass 1, every item has been placed
+        coarsely (half the cohort ruled out); subsequent passes refine.
+
+        When an item's uncertainty window collapses it is flushed to disk
+        immediately. 's' skips the current item for the rest of the session
+        and flushes at best-known position. 'x' flushes all touched items and
+        exits.
+        """
         self.reset_screen()
-        seen_tasks = set()
-        while True:
-            self.reset_screen()
-            if not self.should_do_refresh():
-                print("List sufficiently refreshed.")
-            remaining_tasks = [
-                t
-                for t in self.all_tasks
-                if t.is_complete == False and t not in seen_tasks
-            ]
-            if not remaining_tasks:
-                return
-            remaining_tasks.sort(key=lambda t: t.last_refreshed, reverse=False)
-            chosen_task = remaining_tasks[0]
-            if not chosen_task:
-                return
-            seen_tasks.add(chosen_task)
-            self.list_all_tasks([chosen_task], smart_filter=False)
-            new_stress = self.get_numerical_prompt(
-                "Enter new stress level for task: ", also_accept=["x", ""]
+        if not self.should_do_refresh():
+            print("Lists sufficiently refreshed. Running anyway.\n")
+        incomplete = [t for t in self.all_tasks if not t.is_complete]
+        list_names = sorted({getattr(t, "list_name", "default") for t in incomplete})
+        if not list_names:
+            print("No incomplete tasks to refresh.")
+            return
+        questions_total = 0
+        for list_name in list_names:
+            cohort_all = self._incomplete_tasks_in_list(list_name)
+            if len(cohort_all) < 2:
+                continue
+            snapshot = sorted(
+                cohort_all, key=lambda t: t.get_rendered_stress(self.all_tasks)
             )
-            if new_stress == "x":
-                return
-            found_task = self.find_task(chosen_task.title)
-            if found_task:
-                found_task.last_refreshed = datetime.now()
-                if new_stress != "":
-                    found_task.stress = new_stress
+            frozen = {
+                t.identifier: t.get_rendered_stress(self.all_tasks) for t in snapshot
+            }
+            cohorts: dict = {
+                a.identifier: [
+                    (t, frozen[t.identifier])
+                    for t in snapshot
+                    if t.identifier != a.identifier
+                ]
+                for a in cohort_all
+            }
+            windows: dict = {
+                a.identifier: [0, len(cohorts[a.identifier])] for a in cohort_all
+            }
+            bs_compared: dict = {a.identifier: [] for a in cohort_all}
+            asked: dict = {a.identifier: 0 for a in cohort_all}
+            priority = {
+                a.identifier: self._score_refresh_anchor(a, snapshot)
+                for a in cohort_all
+            }
+
+            def flush(item: Task) -> None:
+                lo, hi = windows[item.identifier]
+                insert_idx = (lo + hi) // 2 if lo < hi else lo
+                self._flush_item_rank(
+                    item,
+                    cohorts[item.identifier],
+                    insert_idx,
+                    bs_compared[item.identifier],
+                )
+
+            def flush_all_touched_and_save() -> None:
+                for a in cohort_all:
+                    if asked[a.identifier] > 0:
+                        flush(a)
+                self.save()
+
+            while True:
+                eligible = [
+                    a for a in cohort_all
+                    if windows[a.identifier][0] < windows[a.identifier][1]
+                ]
+                if not eligible:
+                    break
+                eligible.sort(
+                    key=lambda a: (asked[a.identifier], -priority[a.identifier])
+                )
+                item = eligible[0]
+                cohort = cohorts[item.identifier]
+                lo, hi = windows[item.identifier]
+                mid = (lo + hi) // 2
+                b_task = cohort[mid][0]
+                asked[item.identifier] += 1
+                questions_total += 1
+                touched = sum(1 for v in asked.values() if v > 0)
+                self.reset_screen()
+                print(
+                    f"List: {list_name}  |  touched {touched}/{len(cohort_all)}  "
+                    f"|  question {questions_total}"
+                )
+                print(f"  [1] {item.title}")
+                print(f"  [2] {b_task.title}")
+                answer = self._prompt_bisect_answer(
+                    "Which is more important, 1 or 2?  [1/2/s/x] "
+                )
+                if answer == "x":
+                    flush_all_touched_and_save()
+                    return
+                if answer == "s":
+                    windows[item.identifier] = [lo, lo]
+                    flush(item)
+                    self.save()
+                    continue
+                bs_compared[item.identifier].append(b_task)
+                if answer == "1":
+                    windows[item.identifier] = [mid + 1, hi]
+                else:
+                    windows[item.identifier] = [lo, mid]
+                new_lo, new_hi = windows[item.identifier]
+                if new_lo >= new_hi:
+                    flush(item)
+                    self.save()
 
     def reset_screen(self):
         os.system("clear")
