@@ -940,51 +940,91 @@ class App:
             raise ValueError("Enter 1/2/s/x.")
         return self.get_input_with_validation_mapper(prompt_text, mapper)
 
-    def _flush_item_rank(
+    def _apply_list_rerank(
         self,
-        item: Task,
-        cohort_with_frozen_stress: List[Tuple[Task, float]],
-        insert_index: int,
-        bs_compared: List[Task],
+        cohort_all: List[Task],
+        snapshot: List[Task],
+        windows: dict,
+        bs_compared: dict,
+        asked: dict,
     ) -> None:
         """
-        Writeback item's new rendered-stress position based on the frozen
-        cohort snapshot (stresses captured at session start, so partial
-        writebacks earlier in the session don't shift our math). Also updates
-        last_refreshed on each B the user compared against.
+        End-of-session rerank for one list. Reconstructs the final order from
+        bisect state and spreads stresses evenly across the frozen range —
+        this is the only step that actually mutates stress, so clustered
+        starting values (all 15s) get genuinely unclumped. Untouched items
+        keep their relative order (via frozen_rank tiebreaker) and keep their
+        original last_refreshed so staleness survives the renormalize.
         """
-        n = len(cohort_with_frozen_stress)
-        if n == 0:
+        n = len(cohort_all)
+        if n < 2:
             return
-        if insert_index <= 0:
-            target = cohort_with_frozen_stress[0][1] - 1.0
-        elif insert_index >= n:
-            target = cohort_with_frozen_stress[-1][1] + 1.0
-        else:
-            lo_s = cohort_with_frozen_stress[insert_index - 1][1]
-            hi_s = cohort_with_frozen_stress[insert_index][1]
-            target = (lo_s + hi_s) / 2.0
-        current = item.get_rendered_stress(self.all_tasks)
-        offset = target - current
-        if abs(offset) > 1e-9:
-            self.modify_task_stress_by_offset(item.identifier, offset)
-        else:
-            item.update_last_refreshed()
-        for b in bs_compared:
-            b.update_last_refreshed()
+        frozen_rank = {t.identifier: i for i, t in enumerate(snapshot)}
+        frozen_stress = {
+            t.identifier: snapshot[i].get_rendered_stress(self.all_tasks)
+            for i, t in enumerate(snapshot)
+        }
+
+        def effective_rank(task: Task) -> int:
+            if asked[task.identifier] == 0:
+                return frozen_rank[task.identifier]
+            lo, hi = windows[task.identifier]
+            return (lo + hi) // 2 if lo < hi else lo
+
+        sorted_items = sorted(
+            cohort_all,
+            key=lambda t: (effective_rank(t), frozen_rank[t.identifier]),
+        )
+
+        saved_refreshed = {t.identifier: t.last_refreshed for t in cohort_all}
+        bs_set = set()
+        for other_id, bs in bs_compared.items():
+            for b in bs:
+                bs_set.add(b.identifier)
+
+        lo_s = min(frozen_stress.values())
+        hi_s = max(frozen_stress.values())
+        if hi_s - lo_s < (n - 1):
+            hi_s = lo_s + (n - 1)
+        step = (hi_s - lo_s) / (n - 1) if n > 1 else 0
+
+        for i, task in enumerate(sorted_items):
+            target = lo_s + i * step
+            current = task.get_rendered_stress(self.all_tasks)
+            offset = target - current
+            if abs(offset) > 1e-9:
+                self.modify_task_stress_by_offset(task.identifier, offset)
+
+        # Normalize last_refreshed:
+        # - User-ranked items (asked or served as a B): bump to now, so they
+        #   drop in priority next session.
+        # - Untouched items: restore the pre-session timestamp. modify_task_
+        #   stress_by_offset bumped them if their stress was nudged by the
+        #   spread, but we don't want that to count as "the user confirmed
+        #   this item" — the user never saw it.
+        for task in cohort_all:
+            touched = asked[task.identifier] > 0 or task.identifier in bs_set
+            if touched:
+                task.update_last_refreshed()
+            else:
+                task.last_refreshed = saved_refreshed[task.identifier]
 
     def refresh_stress_levels(self):
         """
         Interactive round-robin shallow bisect. Each list's cohort is
-        snapshotted once at session start (frozen stresses). We cycle through
-        items in priority order (stale + crowded first), asking one bisect
-        question per item per pass. After pass 1, every item has been placed
-        coarsely (half the cohort ruled out); subsequent passes refine.
+        snapshotted once at session start (frozen stresses + ranks). We cycle
+        through items in priority order (stale + crowded first), asking one
+        bisect question per item per pass. During the session no stresses are
+        mutated — we just update per-item uncertainty windows.
 
-        When an item's uncertainty window collapses it is flushed to disk
-        immediately. 's' skips the current item for the rest of the session
-        and flushes at best-known position. 'x' flushes all touched items and
-        exits.
+        At the end of each list's session (natural convergence or 'x' exit),
+        we reconstruct the final ordering from the bisect windows and spread
+        stress values evenly across the frozen range. This is what breaks up
+        clumps of identical stress — midpoint-of-equal-neighbors can't create
+        separation on its own.
+
+        last_refreshed is preserved for items the user did not actually rank,
+        so staleness survives the spreading pass.
         """
         self.reset_screen()
         if not self.should_do_refresh():
@@ -1002,15 +1042,8 @@ class App:
             snapshot = sorted(
                 cohort_all, key=lambda t: t.get_rendered_stress(self.all_tasks)
             )
-            frozen = {
-                t.identifier: t.get_rendered_stress(self.all_tasks) for t in snapshot
-            }
             cohorts: dict = {
-                a.identifier: [
-                    (t, frozen[t.identifier])
-                    for t in snapshot
-                    if t.identifier != a.identifier
-                ]
+                a.identifier: [t for t in snapshot if t.identifier != a.identifier]
                 for a in cohort_all
             }
             windows: dict = {
@@ -1022,23 +1055,7 @@ class App:
                 a.identifier: self._score_refresh_anchor(a, snapshot)
                 for a in cohort_all
             }
-
-            def flush(item: Task) -> None:
-                lo, hi = windows[item.identifier]
-                insert_idx = (lo + hi) // 2 if lo < hi else lo
-                self._flush_item_rank(
-                    item,
-                    cohorts[item.identifier],
-                    insert_idx,
-                    bs_compared[item.identifier],
-                )
-
-            def flush_all_touched_and_save() -> None:
-                for a in cohort_all:
-                    if asked[a.identifier] > 0:
-                        flush(a)
-                self.save()
-
+            bail = False
             while True:
                 eligible = [
                     a for a in cohort_all
@@ -1053,7 +1070,7 @@ class App:
                 cohort = cohorts[item.identifier]
                 lo, hi = windows[item.identifier]
                 mid = (lo + hi) // 2
-                b_task = cohort[mid][0]
+                b_task = cohort[mid]
                 asked[item.identifier] += 1
                 questions_total += 1
                 touched = sum(1 for v in asked.values() if v > 0)
@@ -1068,22 +1085,23 @@ class App:
                     "Which is more important, 1 or 2?  [1/2/s/x] "
                 )
                 if answer == "x":
-                    flush_all_touched_and_save()
-                    return
+                    bail = True
+                    break
                 if answer == "s":
                     windows[item.identifier] = [lo, lo]
-                    flush(item)
-                    self.save()
                     continue
                 bs_compared[item.identifier].append(b_task)
                 if answer == "1":
                     windows[item.identifier] = [mid + 1, hi]
                 else:
                     windows[item.identifier] = [lo, mid]
-                new_lo, new_hi = windows[item.identifier]
-                if new_lo >= new_hi:
-                    flush(item)
-                    self.save()
+            if any(asked[a.identifier] > 0 for a in cohort_all):
+                self._apply_list_rerank(
+                    cohort_all, snapshot, windows, bs_compared, asked
+                )
+                self.save()
+            if bail:
+                return
 
     def reset_screen(self):
         os.system("clear")
