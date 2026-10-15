@@ -1103,6 +1103,28 @@ class App:
             if bail:
                 return
 
+    def normalize_all_selected_lists(self) -> None:
+        """
+        Run renormalize_list_stress on every list present in the current
+        selection. Preserves last_refreshed on all items (this is a cosmetic
+        spread, not a user-driven rerank, so staleness should survive).
+        """
+        incomplete = [t for t in self.all_tasks if not t.is_complete]
+        list_names = sorted({getattr(t, "list_name", "default") for t in incomplete})
+        total_adjusted = 0
+        for list_name in list_names:
+            cohort = self._incomplete_tasks_in_list(list_name)
+            if len(cohort) < 2:
+                continue
+            saved = {t.identifier: t.last_refreshed for t in cohort}
+            adjusted = self.renormalize_list_stress(list_name)
+            for t in cohort:
+                t.last_refreshed = saved[t.identifier]
+            total_adjusted += adjusted
+        if total_adjusted:
+            self.save()
+        print(f"\nNormalized {total_adjusted} task(s) across {len(list_names)} list(s).")
+
     def reset_screen(self):
         os.system("clear")
         print(self.WELCOME_MESSAGE)
@@ -1216,10 +1238,12 @@ class App:
             self.wizard()
         if command == "r":
             self.refresh_stress_levels()
+        if command == "norm":
+            self.normalize_all_selected_lists()
         if command.startswith("cal"):
             found = self.find_task_by_any_id(command[3:])
             found.create_and_launch_ical_event()
-        if command.startswith("n") and command not in ["n", "nn"]:
+        if command.startswith("n") and command not in ["n", "nn", "norm"]:
             found = self.find_task_by_any_id(command[1:])
             self.all_tasks.append(
                 self.edit_or_create_task(dependent_on=[found.identifier])
