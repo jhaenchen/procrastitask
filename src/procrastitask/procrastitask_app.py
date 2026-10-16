@@ -390,88 +390,91 @@ class App:
     def edit_or_create_task(
         self, task_to_edit: Optional[Task] = None, dependent_on=None
     ) -> Task:
-        while True:
-            try:
-                title = task_to_edit.title if task_to_edit else ""
-                description = task_to_edit.description if task_to_edit else ""
-                due_date = task_to_edit.due_date if task_to_edit else ""
-                due_date_cron = task_to_edit.due_date_cron if task_to_edit else ""
-                difficulty = task_to_edit.difficulty if task_to_edit else ""
-                stress = task_to_edit.stress if task_to_edit else ""
-                duration = task_to_edit.duration if task_to_edit else ""
-                dependent_on = (
-                    dependent_on
-                    if dependent_on
-                    else task_to_edit.dependent_on if task_to_edit else []
+        title = task_to_edit.title if task_to_edit else ""
+        description = task_to_edit.description if task_to_edit else ""
+        due_date = task_to_edit.due_date if task_to_edit else ""
+        due_date_cron = task_to_edit.due_date_cron if task_to_edit else ""
+        difficulty = task_to_edit.difficulty if task_to_edit else ""
+        stress = task_to_edit.stress if task_to_edit else ""
+        duration = task_to_edit.duration if task_to_edit else ""
+        dependent_on = (
+            dependent_on
+            if dependent_on
+            else task_to_edit.dependent_on if task_to_edit else []
+        )
+        is_complete = task_to_edit.is_complete if task_to_edit else False
+        dynamic = (
+            task_to_edit.stress_dynamic.to_text()
+            if task_to_edit and task_to_edit.stress_dynamic
+            else ""
+        )
+        creation_date = (
+            task_to_edit.creation_date if task_to_edit else datetime.now()
+        )
+        cool_down = task_to_edit.cool_down if task_to_edit else ""
+        periodicity = task_to_edit.periodicity if task_to_edit else ""
+        task_list_name = (
+            task_to_edit.list_name
+            if task_to_edit
+            else (
+                self.selected_task_list_name[0]
+                if (
+                    len(self.selected_task_list_name) == 1
+                    and "all" not in self.selected_task_list_name
                 )
-                is_complete = task_to_edit.is_complete if task_to_edit else False
-                dynamic = (
-                    task_to_edit.stress_dynamic.to_text()
-                    if task_to_edit and task_to_edit.stress_dynamic
-                    else ""
-                )
-                creation_date = (
-                    task_to_edit.creation_date if task_to_edit else datetime.now()
-                )
-                cool_down = task_to_edit.cool_down if task_to_edit else ""
-                periodicity = task_to_edit.periodicity if task_to_edit else ""
-                task_list_name = (
-                    task_to_edit.list_name
-                    if task_to_edit
-                    else (
-                        self.selected_task_list_name[0]
-                        if (
-                            len(self.selected_task_list_name) == 1
-                            and "all" not in self.selected_task_list_name
-                        )
-                        else "default"
-                    )
-                )
-                (
-                    title,
-                    description,
-                    due_date,
-                    due_date_cron,
-                    difficulty,
-                    stress,
-                    duration,
-                    dependent_on,
-                    is_complete,
-                    dynamic,
-                    creation_date,
-                    cool_down,
-                    periodicity,
-                    task_list_name,
-                ) = rlinput(
-                    multiprompt={
-                        "Title:": title,
-                        "Description:": description,
-                        "Due Date:": due_date,
-                        "Due Date Cron:": due_date_cron,
-                        "Difficulty:": difficulty,
-                        "Stress:": stress,
-                        "Duration:": duration,
-                        "Dependent On:": dependent_on,
-                        "Is Complete:": is_complete,
-                        "Stress dynamic:": dynamic,
-                        "Creation Date:": creation_date,
-                        "Cool down:": cool_down,
-                        "Periodicity": periodicity,
-                        "Task List Name:": task_list_name,
-                    }
-                )
+                else "default"
+            )
+        )
 
-                cool_down = self.interval_validator(cool_down)
-                periodicity = self.cron_validator(periodicity)
-                due_date_cron = self.cron_validator(due_date_cron)
-                task_list_name = self.list_name_validator(task_list_name)
-                dynamic = BaseDynamic.find_dynamic(dynamic) if dynamic else None
-                dependent_on = [
+        while True:
+            (
+                title,
+                description,
+                due_date,
+                due_date_cron,
+                difficulty,
+                stress,
+                duration,
+                dependent_on,
+                is_complete,
+                dynamic,
+                creation_date,
+                cool_down,
+                periodicity,
+                task_list_name,
+            ) = rlinput(
+                multiprompt={
+                    "Title:": title,
+                    "Description:": description,
+                    "Due Date:": due_date,
+                    "Due Date Cron:": due_date_cron,
+                    "Difficulty:": difficulty,
+                    "Stress:": stress,
+                    "Duration:": duration,
+                    "Dependent On:": dependent_on,
+                    "Is Complete:": is_complete,
+                    "Stress dynamic:": dynamic,
+                    "Creation Date:": creation_date,
+                    "Cool down:": cool_down,
+                    "Periodicity": periodicity,
+                    "Task List Name:": task_list_name,
+                }
+            )
+
+            try:
+                parsed_cool_down = self.interval_validator(cool_down)
+                parsed_periodicity = self.cron_validator(periodicity)
+                parsed_due_date_cron = self.cron_validator(due_date_cron)
+                parsed_task_list_name = self.list_name_validator(task_list_name)
+                parsed_dynamic = (
+                    BaseDynamic.find_dynamic(dynamic) if dynamic else None
+                )
+                parsed_dependent_on = [
                     self.find_task_by_any_id(el).identifier
                     for el in ast.literal_eval(dependent_on)
                 ]
 
-                creation_date = (
+                parsed_creation_date = (
                     self.get_date_prompt(
                         "Creation Date",
                         input_func=lambda *args, **kwargs: creation_date,
@@ -480,7 +483,7 @@ class App:
                     else None
                 )
 
-                due_date = (
+                parsed_due_date = (
                     self.get_date_prompt(
                         "Due Date",
                         input_func=lambda *args, **kwargs: due_date,
@@ -488,60 +491,61 @@ class App:
                     if due_date
                     else None
                 )
-                difficulty = self.get_numerical_prompt(
+                parsed_difficulty = self.get_numerical_prompt(
                     "Difficulty",
                     input_func=lambda *args, **kwargs: difficulty,
                     raise_exception=True,
                 )
-                stress = self.get_numerical_prompt(
+                parsed_stress = self.get_numerical_prompt(
                     "Stress",
                     input_func=lambda *args, **kwargs: stress,
                     raise_exception=True,
                 )
-                duration = self.get_numerical_prompt(
+                parsed_duration = self.get_numerical_prompt(
                     "Duration",
                     input_func=lambda *args, **kwargs: duration,
                     raise_exception=True,
                 )
-                is_complete = is_complete != "False"
-                if task_to_edit:
-                    task_to_edit.title = title
-                    task_to_edit.description = description
-                    task_to_edit.dependent_on = dependent_on
-                    task_to_edit.duration = duration
-                    task_to_edit.difficulty = difficulty
-                    if float(task_to_edit.get_rendered_stress(self.all_tasks)) != float(stress):
-                        task_to_edit.last_refreshed = datetime.now()
-                    task_to_edit.stress = stress
-                    task_to_edit.is_complete = is_complete
-                    task_to_edit.stress_dynamic = dynamic
-                    task_to_edit.creation_date = creation_date
-                    task_to_edit.due_date = due_date
-                    task_to_edit.due_date_cron = due_date_cron
-                    task_to_edit.cool_down = cool_down
-                    task_to_edit.periodicity = periodicity
-                    task_to_edit.list_name = task_list_name
-                    return task_to_edit
-
-                created_task = Task(
-                    title=title,
-                    description=description,
-                    duration=duration,
-                    stress=stress,
-                    difficulty=difficulty,
-                    due_date=due_date,
-                    due_date_cron=due_date_cron,
-                    dependent_on=dependent_on,
-                    stress_dynamic=dynamic,
-                    creation_date=creation_date,
-                    cool_down=cool_down,
-                    periodicity=periodicity,
-                    list_name=task_list_name,
-                )
-                return created_task
             except ValueError as e:
                 print(e)
                 sleep(5)
+                continue
+
+            parsed_is_complete = is_complete != "False"
+            if task_to_edit:
+                task_to_edit.title = title
+                task_to_edit.description = description
+                task_to_edit.dependent_on = parsed_dependent_on
+                task_to_edit.duration = parsed_duration
+                task_to_edit.difficulty = parsed_difficulty
+                if float(task_to_edit.get_rendered_stress(self.all_tasks)) != float(parsed_stress):
+                    task_to_edit.last_refreshed = datetime.now()
+                task_to_edit.stress = parsed_stress
+                task_to_edit.is_complete = parsed_is_complete
+                task_to_edit.stress_dynamic = parsed_dynamic
+                task_to_edit.creation_date = parsed_creation_date
+                task_to_edit.due_date = parsed_due_date
+                task_to_edit.due_date_cron = parsed_due_date_cron
+                task_to_edit.cool_down = parsed_cool_down
+                task_to_edit.periodicity = parsed_periodicity
+                task_to_edit.list_name = parsed_task_list_name
+                return task_to_edit
+
+            return Task(
+                title=title,
+                description=description,
+                duration=parsed_duration,
+                stress=parsed_stress,
+                difficulty=parsed_difficulty,
+                due_date=parsed_due_date,
+                due_date_cron=parsed_due_date_cron,
+                dependent_on=parsed_dependent_on,
+                stress_dynamic=parsed_dynamic,
+                creation_date=parsed_creation_date,
+                cool_down=parsed_cool_down,
+                periodicity=parsed_periodicity,
+                list_name=parsed_task_list_name,
+            )
 
     def verbose_create_new_task(self):
         task = self.edit_or_create_task()
