@@ -186,32 +186,44 @@ class TestTask(unittest.TestCase):
         if due is not None:
             self.assertEqual(due.date(), second_due.date())
 
-    def test_completion_before_due_still_counts(self):
+    def test_completion_anchors_next_due(self):
         base = datetime(2025, 5, 20, 8, 0)
         cron = "0 8 * * *"
-        first_due = base + timedelta(days=1)
-        comp = CompletionRecord(completed_at=first_due - timedelta(hours=2), stress_at_completion=1)
+        # Completion just after the first tick: next due is the following tick.
+        comp = CompletionRecord(completed_at=base + timedelta(days=1, hours=1), stress_at_completion=1)
         task = self.make_task_with_cron(base, cron, [comp])
         due = task.current_due_date
         self.assertIsNotNone(due)
         if due is not None:
-            expected_due = base + timedelta(days=2)
-            self.assertEqual(due.date(), expected_due.date())
+            self.assertEqual(due, base + timedelta(days=2))
 
-    def test_fewer_completions_than_due_dates(self):
+    def test_latest_completion_wins_regardless_of_order(self):
         base = datetime(2025, 5, 19, 8, 0)
         cron = "0 8 * * *"
-        # Due dates: base+1, base+2, base+3
+        # Only the most recent completion anchors the next due date.
         completions = [
             CompletionRecord(completed_at=base + timedelta(days=1, hours=1), stress_at_completion=1),
-            CompletionRecord(completed_at=base + timedelta(days=2) - timedelta(hours=1), stress_at_completion=1),
+            CompletionRecord(completed_at=base + timedelta(days=5, hours=2), stress_at_completion=1),
         ]
         task = self.make_task_with_cron(base, cron, completions)
         due = task.current_due_date
         self.assertIsNotNone(due)
         if due is not None:
-            expected_due = base + timedelta(days=3)
-            self.assertEqual(due.date(), expected_due.date())
+            self.assertEqual(due, base + timedelta(days=6))
+
+    def test_missed_ticks_do_not_require_backfill(self):
+        # Simulates the real-world bug: creation long ago, few completions,
+        # many missed ticks. One completion today should advance the due date
+        # to the next upcoming tick, not force the user to click complete N times.
+        base = datetime(2024, 1, 1, 8, 0)
+        cron = "0 8 25 * *"  # monthly on the 25th
+        completions = [
+            CompletionRecord(completed_at=datetime(2024, 2, 10, 9, 0), stress_at_completion=1),
+            CompletionRecord(completed_at=datetime(2026, 10, 16, 13, 0), stress_at_completion=1),
+        ]
+        task = self.make_task_with_cron(base, cron, completions)
+        due = task.current_due_date
+        self.assertEqual(due, datetime(2026, 10, 25, 8, 0))
 
     def test_more_completions_than_due_dates(self):
         base = datetime(2025, 5, 20, 8, 0)
