@@ -398,35 +398,95 @@ class Task:
             return f"-{abs(delta.days)} days"
         return f"{round(delta / timedelta(days=1), 2)} days"
 
+    def get_ancestor_roots(self, all_tasks: List["Task"], _visited: Optional[set] = None) -> List["Task"]:
+        """
+        Walks up `dependent_on` edges and returns the set of root ancestors
+        (tasks whose `dependent_on` is empty or whose parents are all missing).
+        If this task has no ancestors it is itself returned as the sole root.
+        Deduplicates and preserves discovery order; safe against cycles.
+        """
+        if _visited is None:
+            _visited = set()
+        if self.identifier in _visited:
+            return []
+        _visited.add(self.identifier)
+
+        task_by_id = {t.identifier: t for t in all_tasks}
+        parent_ids = [pid for pid in self.dependent_on if pid in task_by_id]
+
+        if not parent_ids:
+            return [self]
+
+        roots: List["Task"] = []
+        seen: set = set()
+        for pid in parent_ids:
+            for root in task_by_id[pid].get_ancestor_roots(all_tasks, _visited):
+                if root.identifier not in seen:
+                    seen.add(root.identifier)
+                    roots.append(root)
+
+        if not roots:
+            # All parents already visited (cycle). Treat self as root.
+            return [self]
+        return roots
+
     def pretty_print(self, all_tasks: List["Task"]):
         print(self.headline())
         print(f"{self.description}\n")
 
-        # Get all downstream tasks with their depth levels
-        downstream_tasks = self.get_all_downstream_tasks(all_tasks)
+        roots = self.get_ancestor_roots(all_tasks)
+        has_ancestors = not (len(roots) == 1 and roots[0].identifier == self.identifier)
+        has_descendants = bool(self.find_dependents(all_tasks))
 
-        # Build index cache for tree tasks starting from 0
-        index_cache = {}
+        index_cache: dict = {}
 
-        if downstream_tasks:
-            print(f"Downstream Dependent Tasks ({len(downstream_tasks)} total):\n")
+        if not (has_ancestors or has_descendants):
+            return index_cache
 
-            # Group tasks by depth to handle tree visualization
-            for idx, (task, depth) in enumerate(downstream_tasks):
-                # Add to cache
-                index_cache[idx] = task
+        label = "Full Dependency Tree" if has_ancestors else "Downstream Dependent Tasks"
+        tree_lines: List[tuple] = []
+        tree_visited: set = set()
+        for root in roots:
+            self._collect_tree_lines(root, all_tasks, "", True, True, tree_visited, tree_lines)
 
-                # Create tree indentation using box-drawing characters
-                if depth == 0:
-                    prefix = "├─ "
-                else:
-                    prefix = "│  " * depth + "└─ "
-
-                # Print task with indentation and index
-                status_indicator = "✓" if task.is_complete else " "
-                print(f"[{idx}] {prefix}[{status_indicator}] {task.title} (stress: {self._format_num_as_int_if_possible(task.get_rendered_stress(all_tasks))})\n")
+        print(f"{label} ({len(tree_lines)} total):\n")
+        for idx, (task, prefix, is_current) in enumerate(tree_lines):
+            index_cache[idx] = task
+            status_indicator = "✓" if task.is_complete else " "
+            marker = "→ " if is_current else ""
+            stress = self._format_num_as_int_if_possible(task.get_rendered_stress(all_tasks))
+            print(f"[{idx}] {prefix}{marker}[{status_indicator}] {task.title} (stress: {stress})\n")
 
         return index_cache
+
+    def _collect_tree_lines(
+        self,
+        node: "Task",
+        all_tasks: List["Task"],
+        prefix: str,
+        is_last: bool,
+        is_root: bool,
+        visited: set,
+        out: list,
+    ) -> None:
+        if node.identifier in visited:
+            return
+        visited.add(node.identifier)
+
+        if is_root:
+            display_prefix = ""
+            child_base = ""
+        else:
+            display_prefix = prefix + ("└─ " if is_last else "├─ ")
+            child_base = prefix + ("   " if is_last else "│  ")
+
+        out.append((node, display_prefix, node.identifier == self.identifier))
+
+        children = node.find_dependents(all_tasks)
+        for i, child in enumerate(children):
+            self._collect_tree_lines(
+                child, all_tasks, child_base, i == len(children) - 1, False, visited, out
+            )
 
     def find_dependents(self, all_tasks: List["Task"]) -> List["Task"]:
         to_return = []

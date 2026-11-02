@@ -511,31 +511,56 @@ class TestTask(unittest.TestCase):
         self.assertIsNotNone(downstream2)
 
     def test_pretty_print_returns_index_cache(self):
-        """Test that pretty_print returns an index cache with downstream tasks"""
-        # Create a dependency tree: A <- B <- C, A <- D
+        """Viewing a root task indexes the root and every descendant."""
+        # A <- B <- C, A <- D
         t1 = Task("A", "Root task", 1, 10, 5)
         t2 = Task("B", "Depends on A", 1, 10, 10, dependent_on=[t1.identifier])
         t3 = Task("C", "Depends on B", 1, 10, 15, dependent_on=[t2.identifier])
         t4 = Task("D", "Also depends on A", 1, 10, 20, dependent_on=[t1.identifier])
         all_tasks = [t1, t2, t3, t4]
 
-        # Call pretty_print
         index_cache = t1.pretty_print(all_tasks)
 
-        # Verify the cache is returned and is a dict
         self.assertIsInstance(index_cache, dict)
+        cached_titles = {task.title for task in index_cache.values()}
+        self.assertEqual(cached_titles, {"A", "B", "C", "D"})
 
-        # Verify indices start from 0 and are sequential
-        self.assertEqual(len(index_cache), 3)  # B, C, D
-        self.assertIn(0, index_cache)
-        self.assertIn(1, index_cache)
-        self.assertIn(2, index_cache)
+    def test_pretty_print_from_descendant_shows_ancestors_and_siblings(self):
+        """Viewing a mid-tree task shows the whole connected tree from its roots."""
+        # A <- B <- C, A <- D
+        t1 = Task("A", "Root", 1, 10, 5)
+        t2 = Task("B", "Child of A", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "Child of B", 1, 10, 15, dependent_on=[t2.identifier])
+        t4 = Task("D", "Sibling of B", 1, 10, 20, dependent_on=[t1.identifier])
+        all_tasks = [t1, t2, t3, t4]
 
-        # Verify the tasks are correctly mapped
-        cached_titles = {idx: task.title for idx, task in index_cache.items()}
-        # B and D are at depth 0, C is at depth 1
-        # The order depends on find_dependents, but all three should be present
-        self.assertEqual(set(cached_titles.values()), {"B", "C", "D"})
+        index_cache = t3.pretty_print(all_tasks)
+
+        cached_titles = {task.title for task in index_cache.values()}
+        self.assertEqual(cached_titles, {"A", "B", "C", "D"})
+
+    def test_get_ancestor_roots_standalone(self):
+        t1 = Task("solo", "", 1, 10, 5)
+        self.assertEqual(t1.get_ancestor_roots([t1]), [t1])
+
+    def test_get_ancestor_roots_single_parent_chain(self):
+        t1 = Task("A", "", 1, 10, 5)
+        t2 = Task("B", "", 1, 10, 10, dependent_on=[t1.identifier])
+        t3 = Task("C", "", 1, 10, 15, dependent_on=[t2.identifier])
+        self.assertEqual(t3.get_ancestor_roots([t1, t2, t3]), [t1])
+
+    def test_get_ancestor_roots_missing_parent_treated_as_root(self):
+        # Parent id references a task that no longer exists.
+        t1 = Task("A", "", 1, 10, 5, dependent_on=["nonexistent-id"])
+        self.assertEqual(t1.get_ancestor_roots([t1]), [t1])
+
+    def test_get_ancestor_roots_cycle(self):
+        t1 = Task("A", "", 1, 10, 5)
+        t2 = Task("B", "", 1, 10, 10)
+        t1.dependent_on = [t2.identifier]
+        t2.dependent_on = [t1.identifier]
+        roots = t1.get_ancestor_roots([t1, t2])
+        self.assertTrue(len(roots) >= 1)
 
     def test_pretty_print_empty_tree_returns_empty_cache(self):
         """Test that pretty_print returns empty cache when no downstream tasks"""
